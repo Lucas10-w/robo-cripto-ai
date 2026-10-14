@@ -1,10 +1,15 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import yfinance as yf
 import urllib.request
 import json
 from datetime import datetime
+
+# ==============================================================================
+# CONFIGURAÇÃO DE SEGURANÇA VISUAL PARA SERVIDORES EM NUVEM (LINUX)
+# ==============================================================================
+import matplotlib
+matplotlib.use('Agg') # Força o robô a desenhar o gráfico em memória na nuvem de forma estável
+import matplotlib.pyplot as plt
 
 # Configuração da Página Web ORIGINAL
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
@@ -13,9 +18,8 @@ st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
-# CONFIGURAÇÃO DO SEU TELEGRAM (CÓDIGO ATUALIZADO)
+# CONFIGURAÇÃO DO SEU TELEGRAM (COLE SEU TOKEN RECENTE AQUI)
 # ==============================================================================
-# Cole o código grande do BotFather dentro das aspas abaixo:
 TELEGRAM_TOKEN = "8659842719:AAHzgJe_6dh-GPxrEjOwqaQ8-Z2HdvTjEUg"
 TELEGRAM_CHAT_ID = "5977741363"
 
@@ -73,11 +77,12 @@ config_moedas = {
 }
 
 # ==============================================================================
-# FUNÇÕES DE BACK-END ORIGINAIS
+# FUNÇÕES DE BACK-END E CAPTURA DE DADOS
 # ==============================================================================
 @st.cache_data(ttl=60)
 def buscar_dados_e_indicadores(ticker_name):
     try:
+        import yfinance as yf
         ticker = yf.Ticker(ticker_name)
         df_historico = ticker.history(period="60d", interval="1d")
         if df_historico.empty: return None
@@ -196,9 +201,3 @@ for nome_moeda, info in config_moedas.items():
                 msg = f"⚠️ *Crypto Bot AI Alerta!* ⚠️\n\n🔴 *AVISO DE VENDA/REALIZAÇÃO* para *{nome_moeda}*!\n\n📈 Preço Atual: ${preco_atual:,.2f}\n📊 Indicador RSI: {rsi_atual:.1f}\n🧠 Sentimento da IA: {sentimento_final_ia}"
                 enviar_alerta_telegram(msg)
             else:
-                st.info(f"🟡 STATUS: AGUARDANDO. O mercado está em zona de espera ou a IA e os gráficos não estão em sincronia perfeita. Capital protegido de riscos!")
-
-            # GRÁFICO E TABELA ORIGINAIS
-            st.markdown("### 📈 Gráfico de Análise Avançada")
-            plt.style.use('dark_background')
-            fig, ax = plt.subplots(figsize=(12, 3.5))

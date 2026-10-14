@@ -1,8 +1,8 @@
 import streamlit as st
-import ccxt
 import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime
+import urllib.request
+import json
 
 # Configuração da Página Web ORIGINAL
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
@@ -11,15 +11,20 @@ st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
-# MATEMÁTICA PURA DOS INDICADORES (Sem bibliotecas externas para não dar erro)
+# FUNÇÃO DE CAPTURA VIA COINGECKO (Imune a bloqueios de nuvem)
 # ==============================================================================
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=60)
 def buscar_dados_e_indicadores():
     try:
-        exchange = ccxt.binance()
-        ohlcv = exchange.fetch_ohlcv('BTC/USDT', '1h', limit=720)
-        colunas = ['timestamp', 'abertura', 'maxima', 'minima', 'fechamento', 'volume']
-        df = pd.DataFrame(ohlcv, columns=colunas)
+        # Puxa o histórico de preços dos últimos 30 dias diretamente da CoinGecko
+        url = "https://coingecko.com"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        
+        with urllib.request.urlopen(req) as response:
+            dados_json = json.loads(response.read().decode())
+            
+        precos = dados_json['prices']
+        df = pd.DataFrame(precos, columns=['timestamp', 'fechamento'])
         df['data'] = pd.to_datetime(df['timestamp'], unit='ms')
         
         # 1. Cálculo matemático nativo da EMA 20
@@ -51,7 +56,7 @@ def rodar_simulador(df):
         if rsi <= 30.0 and posicao == 0:
             posicao = 1
             preco_compra = preco
-            trades.append({"Tipo": "🟢 COMPRA", "Data": data.strftime('%d/%m/%Y %H:%M'), "Preço": f"${preco:,.2f}", "RSI": f"{rsi:.1f}", "Resultado": "Em aberto"})
+            trades.append({"Tipo": "🟢 COMPRA", "Data": data.strftime('%d/%m/%Y'), "Preço": f"${preco:,.2f}", "RSI": f"{rsi:.1f}", "Resultado": "Em aberto"})
         elif rsi >= 65.0 and posicao == 1:
             posicao = 0
             lucro = (preco - preco_compra) / preco_compra
@@ -111,9 +116,8 @@ if df_mercado is not None:
     # TABELA EM TEXTO LEVE
     st.markdown("### 📜 Histórico de Transações Efetuadas (Últimos 30 Dias)")
     if not df_trades.empty:
-        # Formata a tabela de forma simples em texto que nunca quebra
         st.text(df_trades.to_string(index=False))
     else:
         st.write("Nenhuma operação aberta nesta região de filtro extremo de segurança.")
 else:
-    st.error("Erro ao carregar dados do mercado. Aguarde alguns segundos para atualizar.")
+    st.error("Erro ao carregar dados públicos da API. Aguarde alguns segundos para o sistema tentar novamente.")

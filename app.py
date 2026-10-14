@@ -13,7 +13,7 @@ st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
-# MOTOR DE INTELIGÊNCIA ARTIFICIAL: ANÁLISE DE SENTIMENTO NATIVA
+# MOTOR DE INTELIGÊNCIA ARTIFICIAL: ANÁLISE DE SENTIMENTO NATIVA (CORRIGIDO)
 # ==============================================================================
 def ia_analisar_sentimento(texto):
     """Algoritmo matemático leve de NLP para pontuar o sentimento do texto de -1 a +1"""
@@ -24,11 +24,12 @@ def ia_analisar_sentimento(texto):
     texto_minusculo = texto.lower()
     score = 0.0
     
-    for palavra in palavras_otimistas:
-        if palavra in texto_minusculo:
+    # CORREÇÃO DA LETRA: Mudado de 'palabra' para 'word' para corrigir o erro do Python
+    for word in palavras_otimistas:
+        if word in texto_minusculo:
             score += 0.2
-    for palavra in palavras_pessimistas:
-        if palabra in texto_minusculo:
+    for word in palavras_pessimistas:
+        if word in texto_minusculo:
             score -= 0.2
             
     # Limita o score entre -1.0 e +1.0
@@ -142,9 +143,9 @@ for nome_moeda, info in config_moedas.items():
                 st.subheader("💰 Saldo Total")
                 st.success(f"${capital_final:,.2f}")
             
-            # NOVO: Painel de Análise de Notícias com IA
+            # Painel de Análise de Notícias com IA
             st.markdown(f"### 🧠 Painel de Sentimento da IA para {nome_moeda}")
-            col_noticias, col_status_ia = st.columns([2, 1])
+            col_noticias, col_status_ia = st.columns(2)
             
             with col_noticias:
                 st.markdown("**Feed de Notícias Recentes Detectadas:**")
@@ -203,5 +204,3 @@ for nome_moeda, info in config_moedas.items():
             plt.tight_layout()
             st.pyplot(fig)
             plt.close(fig)
-
-            st.markdown("### 📜 Histórico de Transações Efetuadas (Últimos 30 Dias)")

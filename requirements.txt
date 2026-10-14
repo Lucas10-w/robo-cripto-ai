@@ -1,6 +1,5 @@
 ccxt
 pandas
-ta-lib-easy
+pandas-ta
 matplotlib
 tabulate
-

@@ -13,31 +13,41 @@ st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
-# MOTOR DE INTELIGÊNCIA ARTIFICIAL: ANÁLISE DE SENTIMENTO NATIVA (CORRIGIDO)
+# CONFIGURAÇÃO DO SEU TELEGRAM (CÓDIGO ATUALIZADO)
+# ==============================================================================
+# Cole o código grande do BotFather dentro das aspas abaixo:
+TELEGRAM_TOKEN = "8659842719:AAHzgJe_6dh-GPxrEjOwqaQ8-Z2HdvTjEUg"
+TELEGRAM_CHAT_ID = "5977741363"
+
+def enviar_alerta_telegram(mensagem):
+    """Envia uma notificação em tempo real direto para o seu celular via Telegram"""
+    if TELEGRAM_TOKEN == "COLE_AQUI_O_SEU_TOKEN_DO_BOTFATHER" or TELEGRAM_CHAT_ID == "":
+        return 
+    try:
+        texto_codificado = urllib.parse.quote(mensagem)
+        url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={texto_codificado}&parse_mode=Markdown"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            pass
+    except:
+        pass
+
+# ==============================================================================
+# MOTOR DE INTELIGÊNCIA ARTIFICIAL: ANÁLISE DE SENTIMENTO NATIVA
 # ==============================================================================
 def ia_analisar_sentimento(texto):
-    """Algoritmo matemático leve de NLP para pontuar o sentimento do texto de -1 a +1"""
-    # Dicionário de palavras-chave financeiras e seus pesos de impacto no mercado
     palavras_otimistas = ['bullish', 'surge', 'rise', 'buy', 'accumulate', 'gain', 'growth', 'positive', 'high', 'clear', 'green', 'support']
     palavras_pessimistas = ['bearish', 'drop', 'fall', 'sell', 'crash', 'loss', 'negative', 'low', 'risk', 'panic', 'crackdown', 'resistance']
-    
     texto_minusculo = texto.lower()
     score = 0.0
-    
-    # CORREÇÃO DA LETRA: Mudado de 'palabra' para 'word' para corrigir o erro do Python
     for word in palavras_otimistas:
-        if word in texto_minusculo:
-            score += 0.2
+        if word in texto_minusculo: score += 0.2
     for word in palavras_pessimistas:
-        if word in texto_minusculo:
-            score -= 0.2
-            
-    # Limita o score entre -1.0 e +1.0
+        if word in texto_minusculo: score -= 0.2
     return max(min(score, 1.0), -1.0)
 
-@st.cache_data(ttl=300) # Guarda as notícias na memória por 5 minutos para economizar internet
+@st.cache_data(ttl=300)
 def buscar_noticias_cripto():
-    """Busca manchetes reais e atualizadas do mercado cripto global"""
     try:
         url = "https://cryptoquant.com"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -45,7 +55,6 @@ def buscar_noticias_cripto():
             dados = json.loads(response.read().decode())
         return dados.get('data', [])
     except:
-        # Feed alternativo de segurança caso o principal fique fora do ar
         return [
             {"title": "Bitcoin institutions continue steady accumulation in secure zones"},
             {"title": "Crypto markets show stable consolidation ahead of liquidity influx"},
@@ -71,13 +80,11 @@ def buscar_dados_e_indicadores(ticker_name):
     try:
         ticker = yf.Ticker(ticker_name)
         df_historico = ticker.history(period="60d", interval="1d")
-        if df_historico.empty:
-            return None
+        if df_historico.empty: return None
         df = df_historico.reset_index()
         df.columns = [col.lower() for col in df.columns]
         df = df.rename(columns={'close': 'fechamento'})
         
-        # Média Móvel 20 e RSI 14 originais
         df['ema_20'] = df['fechamento'].ewm(span=20, adjust=False).mean()
         delta = df['fechamento'].diff()
         ganho = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -85,8 +92,7 @@ def buscar_dados_e_indicadores(ticker_name):
         rs = ganho / (perda + 0.00001)
         df['rsi_14'] = 100 - (100 / (1 + rs))
         return df.dropna()
-    except:
-        return None
+    except: return None
 
 def rodar_simulador(df):
     capital = 1000.0
@@ -113,7 +119,6 @@ def rodar_simulador(df):
 # ==============================================================================
 # RENDERIZAÇÃO CENTRALIZADA
 # ==============================================================================
-# Busca as notícias globais uma única vez para distribuir nas abas
 lista_noticias = buscar_noticias_cripto()
 
 for nome_moeda, info in config_moedas.items():
@@ -128,7 +133,6 @@ for nome_moeda, info in config_moedas.items():
             preco_atual = ultima_linha['fechamento']
             rsi_atual = ultima_linha['rsi_14']
             
-            # BLOCOS SUPERIORES DE MÉTRICAS (MANTIDO IDÊNTICO)
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.subheader("💲 Preço Atual")
@@ -154,20 +158,16 @@ for nome_moeda, info in config_moedas.items():
                 
                 for item in lista_noticias:
                     titulo = item.get('title', '')
-                    # Filtra notícias relevantes para a moeda da aba atual
                     if "btc" in titulo.lower() or "bitcoin" in titulo.lower() or "market" in titulo.lower() or "crypto" in titulo.lower() or ("eth" in titulo.lower() and "eth" in info["ticker"].lower()) or ("sol" in titulo.lower() and "sol" in info["ticker"].lower()):
                         score_noticia = ia_analisar_sentimento(titulo)
                         score_total_ia += score_noticia
                         contador_noticias += 1
-                        
                         icone_sentimento = "🔹"
                         if score_noticia > 0: icone_sentimento = "🔺"
                         elif score_noticia < 0: icone_sentimento = "🔻"
-                        
                         st.write(f"{icone_sentimento} {titulo}")
                 
                 if contador_noticias == 0:
-                    st.write("☕ Nenhuma notícia impactante específica nas últimas horas.")
                     score_medio_ia = 0.0
                 else:
                     score_medio_ia = score_total_ia / contador_noticias
@@ -175,32 +175,30 @@ for nome_moeda, info in config_moedas.items():
             with col_status_ia:
                 st.markdown("**Veredito de Texto da IA:**")
                 if score_medio_ia > 0.05:
-                    st.success(f"🟢 OTIMISTA (Score: {score_medio_ia:+.2f})\\nAs notícias indicam força compradora no curto prazo.")
+                    st.success(f"🟢 OTIMISTA (Score: {score_medio_ia:+.2f})")
                     sentimento_final_ia = "OTIMISTA"
                 elif score_medio_ia < -0.05:
-                    st.error(f"🔴 PESSIMISTA (Score: {score_medio_ia:+.2f})\\nNotícias indicam cautela ou pressão de venda.")
+                    st.error(f"🔴 PESSIMISTA (Score: {score_medio_ia:+.2f})")
                     sentimento_final_ia = "PESSIMISTA"
                 else:
-                    st.warning(f"🟡 NEUTRO (Score: {score_medio_ia:+.2f})\\nNotícias equilibradas ou sem viés claro.")
+                    st.warning(f"🟡 NEUTRO (Score: {score_medio_ia:+.2f})")
                     sentimento_final_ia = "NEUTRO"
 
             st.markdown(f"### 🤖 Veredito do Robô em Tempo Real")
-            # REGRA MÁXIMA DE CERTEZA: Gráfico Técnico + Confirmação Textual da IA
+            
+            # LÓGICA DE DISPARO DO TELEGRAM EM TEMPO REAL
             if rsi_atual <= 30 and sentimento_final_ia == "OTIMISTA":
                 st.success(f"🔥 SINAL MÁXIMO DE COMPRA! Técnico e IA de notícias confirmam entrada ultra segura em {nome_moeda}.")
+                msg = f"🚨 *Crypto Bot AI Alerta!* 🚨\n\n🔥 *SINAL MÁXIMO DE COMPRA* detectado para *{nome_moeda}*!\n\n📈 Preço Atual: ${preco_atual:,.2f}\n📊 Indicador RSI: {rsi_atual:.1f}\n🧠 Sentimento da IA: {sentimento_final_ia}\n\n_Acesse o painel para acompanhar!_"
+                enviar_alerta_telegram(msg)
             elif rsi_atual >= 65 and sentimento_final_ia == "PESSIMISTA":
                 st.warning(f"⚠️ AVISO DE REALIZAÇÃO COMPLETA! Gráfico saturado e IA detectando notícias negativas.")
+                msg = f"⚠️ *Crypto Bot AI Alerta!* ⚠️\n\n🔴 *AVISO DE VENDA/REALIZAÇÃO* para *{nome_moeda}*!\n\n📈 Preço Atual: ${preco_atual:,.2f}\n📊 Indicador RSI: {rsi_atual:.1f}\n🧠 Sentimento da IA: {sentimento_final_ia}"
+                enviar_alerta_telegram(msg)
             else:
                 st.info(f"🟡 STATUS: AGUARDANDO. O mercado está em zona de espera ou a IA e os gráficos não estão em sincronia perfeita. Capital protegido de riscos!")
 
-            # GRÁFICO E TABELA (MANTIDOS IDÊNTICOS)
+            # GRÁFICO E TABELA ORIGINAIS
             st.markdown("### 📈 Gráfico de Análise Avançada")
             plt.style.use('dark_background')
             fig, ax = plt.subplots(figsize=(12, 3.5))
-            ax.plot(df_mercado['date'], df_mercado['fechamento'], label=f'Preço {nome_moeda}', color='#00ffcc', linewidth=1.5)
-            ax.plot(df_mercado['date'], df_mercado['ema_20'], label='Tendência (EMA 20)', color='#ff9900', linestyle='--')
-            ax.legend(loc='upper left')
-            ax.grid(True, alpha=0.1)
-            plt.tight_layout()
-            st.pyplot(fig)
-            plt.close(fig)

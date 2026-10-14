@@ -1,5 +1,3 @@
 ccxt
 pandas
-pandas-ta
 matplotlib
-tabulate

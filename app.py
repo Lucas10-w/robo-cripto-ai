@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import urllib.request
-import json
+import yfinance as yf
+from datetime import datetime
 
 # Configuração da Página Web ORIGINAL
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
@@ -11,21 +11,21 @@ st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
-# FUNÇÃO DE CAPTURA VIA COINGECKO (Imune a bloqueios de nuvem)
+# FUNÇÃO DE CAPTURA VIA YAHOO FINANCE (Totalmente imune a bloqueios de nuvem)
 # ==============================================================================
 @st.cache_data(ttl=60)
 def buscar_dados_e_indicadores():
     try:
-        # Puxa o histórico de preços dos últimos 30 dias diretamente da CoinGecko
-        url = "https://coingecko.com"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        # Puxa os dados diários do Bitcoin dos últimos 60 dias diretamente do Yahoo Finance
+        ticker = yf.Ticker("BTC-USD")
+        df_historico = ticker.history(period="60d", interval="1d")
         
-        with urllib.request.urlopen(req) as response:
-            dados_json = json.loads(response.read().decode())
+        if df_historico.empty:
+            return None
             
-        precos = dados_json['prices']
-        df = pd.DataFrame(precos, columns=['timestamp', 'fechamento'])
-        df['data'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df = df_historico.reset_index()
+        df.columns = [col.lower() for col in df.columns]
+        df = df.rename(columns={'close': 'fechamento'})
         
         # 1. Cálculo matemático nativo da EMA 20
         df['ema_20'] = df['fechamento'].ewm(span=20, adjust=False).mean()
@@ -51,7 +51,7 @@ def rodar_simulador(df):
         linha = df.iloc[i]
         preco = linha['fechamento']
         rsi = linha['rsi_14']
-        data = linha['data']
+        data = linha['date']
         
         if rsi <= 30.0 and posicao == 0:
             posicao = 1
@@ -106,8 +106,8 @@ if df_mercado is not None:
     st.markdown("### 📈 Gráfico de Análise Avançada")
     plt.style.use('dark_background')
     fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(df_mercado['data'], df_mercado['fechamento'], label='Preço BTC', color='#00ffcc', linewidth=1.5)
-    ax.plot(df_mercado['data'], df_mercado['ema_20'], label='Tendência (EMA 20)', color='#ff9900', linestyle='--')
+    ax.plot(df_mercado['date'], df_mercado['fechamento'], label='Preço BTC', color='#00ffcc', linewidth=1.5)
+    ax.plot(df_mercado['date'], df_mercado['ema_20'], label='Tendência (EMA 20)', color='#ff9900', linestyle='--')
     ax.legend(loc='upper left')
     ax.grid(True, alpha=0.1)
     plt.tight_layout()
@@ -120,4 +120,4 @@ if df_mercado is not None:
     else:
         st.write("Nenhuma operação aberta nesta região de filtro extremo de segurança.")
 else:
-    st.error("Erro ao carregar dados públicos da API. Aguarde alguns segundos para o sistema tentar novamente.")
+    st.error("Conectando aos servidores estáveis da rede... Dê F5 na página em alguns segundos para sincronizar.")

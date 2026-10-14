@@ -4,11 +4,9 @@ import urllib.request
 import json
 from datetime import datetime
 
-# ==============================================================================
-# CONFIGURAÇÃO DE SEGURANÇA VISUAL PARA SERVIDORES EM NUVEM (LINUX)
-# ==============================================================================
+# Força o matplotlib a trabalhar em modo de segundo plano (Garante estabilidade na nuvem)
 import matplotlib
-matplotlib.use('Agg') # Força o robô a desenhar o gráfico em memória na nuvem de forma estável
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 # Configuração da Página Web ORIGINAL
@@ -65,20 +63,6 @@ def buscar_noticias_cripto():
             {"title": "Regulators signal positive environment for digital asset growth"}
         ]
 
-# ==============================================================================
-# CRIAÇÃO DAS ABAS INTERATIVAS (BTC, ETH, SOL)
-# ==============================================================================
-aba_btc, aba_eth, aba_sol = st.tabs(["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
-
-config_moedas = {
-    "Bitcoin (BTC)": {"ticker": "BTC-USD", "aba": aba_btc},
-    "Ethereum (ETH)": {"ticker": "ETH-USD", "aba": aba_eth},
-    "Solana (SOL)": {"ticker": "SOL-USD", "aba": aba_sol}
-}
-
-# ==============================================================================
-# FUNÇÕES DE BACK-END E CAPTURA DE DADOS
-# ==============================================================================
 @st.cache_data(ttl=60)
 def buscar_dados_e_indicadores(ticker_name):
     try:
@@ -122,82 +106,114 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# RENDERIZAÇÃO CENTRALIZADA
+# RENDERIZAÇÃO CENTRALIZADA DAS ABAS INDEPENDENTES (SEM loops/erros de espaço)
 # ==============================================================================
 lista_noticias = buscar_noticias_cripto()
+aba_btc, aba_eth, aba_sol = st.tabs(["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
 
-for nome_moeda, info in config_moedas.items():
-    with info["aba"]:
-        df_mercado = buscar_dados_e_indicadores(info["ticker"])
+# ------------------------------------------------------------------------------
+# ABA 1: BITCOIN (BTC)
+# ------------------------------------------------------------------------------
+with aba_btc:
+    df_btc = buscar_dados_e_indicadores("BTC-USD")
+    if df_btc is not None:
+        cap_btc, trades_btc = rodar_simulador(df_btc)
+        lucro_btc = ((cap_btc - 1000.0) / 1000.0) * 100
+        ult_btc = df_btc.iloc[-1]
         
-        if df_mercado is not None:
-            capital_final, df_trades = rodar_simulador(df_mercado)
-            lucro_total = ((capital_final - 1000.0) / 1000.0) * 100
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("💲 Preço BTC", f"${ult_btc['fechamento']:,.2f}")
+        c2.metric("📈 Força RSI", f"{ult_btc['rsi_14']:.2f}")
+        c3.metric("📊 Lucro Mês", f"{lucro_btc:+.2f}%")
+        c4.metric("💰 Saldo Total", f"${cap_btc:,.2f}")
+        
+        # Bloco de notícias BTC
+        st.markdown("### 🧠 Painel de Sentimento da IA para Bitcoin (BTC)")
+        sc_tot = 0.0
+        cont = 0
+        for n in lista_noticias:
+            t = n.get('title', '')
+            if "btc" in t.lower() or "bitcoin" in t.lower() or "market" in t.lower() or "crypto" in t.lower():
+                sc = ia_analisar_sentimento(t)
+                sc_tot += sc
+                cont += 1
+                st.write(f"🔹 {t}")
+        sc_med = sc_tot / cont if cont > 0 else 0.0
+        
+        sent_ia = "NEUTRO"
+        if sc_med > 0.05:
+            st.success(f"🟢 OTIMISTA (Score: {sc_med:+.2f})")
+            sent_ia = "OTIMISTA"
+        elif sc_med < -0.05:
+            st.error(f"🔴 PESSIMISTA (Score: {sc_med:+.2f})")
+            sent_ia = "PESSIMISTA"
+        else:
+            st.warning(f"🟡 NEUTRO (Score: {sc_med:+.2f})")
             
-            ultima_linha = df_mercado.iloc[-1]
-            preco_atual = ultima_linha['fechamento']
-            rsi_atual = ultima_linha['rsi_14']
+        st.markdown("### 🤖 Veredito do Robô em Tempo Real")
+        if ult_btc['rsi_14'] <= 30 and sent_ia == "OTIMISTA":
+            st.success("🔥 SINAL MÁXIMO DE COMPRA! Técnico e IA confirmam entrada segura.")
+            enviar_alerta_telegram(f"🚨 Alerta! Sinal Máximo de COMPRA para Bitcoin (BTC): ${ult_btc['fechamento']:,.2f}")
+        elif ult_btc['rsi_14'] >= 65 and sent_ia == "PESSIMISTA":
+            st.warning("⚠️ AVISO DE REALIZAÇÃO COMPLETA! Gráfico saturado.")
+        else:
+            st.info("🟡 STATUS: AGUARDANDO. Sem sincronia perfeita ou zona neutra. Capital protegido!")
             
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.subheader("💲 Preço Atual")
-                st.info(f"${preco_atual:,.2f}")
-            with col2:
-                st.subheader("📈 Força RSI")
-                st.info(f"{rsi_atual:.2f}")
-            with col3:
-                st.subheader("📊 Lucro Mês")
-                st.success(f"{lucro_total:+.2f}%")
-            with col4:
-                st.subheader("💰 Saldo Total")
-                st.success(f"${capital_final:,.2f}")
-            
-            # Painel de Análise de Notícias com IA
-            st.markdown(f"### 🧠 Painel de Sentimento da IA para {nome_moeda}")
-            col_noticias, col_status_ia = st.columns(2)
-            
-            with col_noticias:
-                st.markdown("**Feed de Notícias Recentes Detectadas:**")
-                score_total_ia = 0.0
-                contador_noticias = 0
-                
-                for item in lista_noticias:
-                    titulo = item.get('title', '')
-                    if "btc" in titulo.lower() or "bitcoin" in titulo.lower() or "market" in titulo.lower() or "crypto" in titulo.lower() or ("eth" in titulo.lower() and "eth" in info["ticker"].lower()) or ("sol" in titulo.lower() and "sol" in info["ticker"].lower()):
-                        score_noticia = ia_analisar_sentimento(titulo)
-                        score_total_ia += score_noticia
-                        contador_noticias += 1
-                        icone_sentimento = "🔹"
-                        if score_noticia > 0: icone_sentimento = "🔺"
-                        elif score_noticia < 0: icone_sentimento = "🔻"
-                        st.write(f"{icone_sentimento} {titulo}")
-                
-                if contador_noticias == 0:
-                    score_medio_ia = 0.0
-                else:
-                    score_medio_ia = score_total_ia / contador_noticias
-            
-            with col_status_ia:
-                st.markdown("**Veredito de Texto da IA:**")
-                if score_medio_ia > 0.05:
-                    st.success(f"🟢 OTIMISTA (Score: {score_medio_ia:+.2f})")
-                    sentimento_final_ia = "OTIMISTA"
-                elif score_medio_ia < -0.05:
-                    st.error(f"🔴 PESSIMISTA (Score: {score_medio_ia:+.2f})")
-                    sentimento_final_ia = "PESSIMISTA"
-                else:
-                    st.warning(f"🟡 NEUTRO (Score: {score_medio_ia:+.2f})")
-                    sentimento_final_ia = "NEUTRO"
+        st.markdown("### 📈 Gráfico de Análise Avançada")
+        f, ax = plt.subplots(figsize=(12, 3.5))
+        ax.plot(df_btc['date'], df_btc['fechamento'], label='Preço BTC', color='#00ffcc')
+        ax.plot(df_btc['date'], df_btc['ema_20'], label='EMA 20', color='#ff9900', linestyle='--')
+        ax.legend(loc='upper left')
+        ax.grid(True, alpha=0.1)
+        plt.tight_layout()
+        st.pyplot(f)
+        plt.close(f)
+        
+        st.markdown("### 📜 Histórico de Transações (Últimos 30 Dias)")
+        st.text(trades_btc.to_string(index=False) if not trades_btc.empty else "Nenhuma operação efetuada.")
 
-            st.markdown(f"### 🤖 Veredito do Robô em Tempo Real")
+# ------------------------------------------------------------------------------
+# ABA 2: ETHEREUM (ETH)
+# ------------------------------------------------------------------------------
+with aba_eth:
+    df_eth = buscar_dados_e_indicadores("ETH-USD")
+    if df_eth is not None:
+        cap_eth, trades_eth = rodar_simulador(df_eth)
+        lucro_eth = ((cap_eth - 1000.0) / 1000.0) * 100
+        ult_eth = df_eth.iloc[-1]
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("💲 Preço ETH", f"${ult_eth['fechamento']:,.2f}")
+        c2.metric("📈 Força RSI", f"{ult_eth['rsi_14']:.2f}")
+        c3.metric("📊 Lucro Mês", f"{lucro_eth:+.2f}%")
+        c4.metric("💰 Saldo Total", f"${cap_eth:,.2f}")
+        
+        st.markdown("### 🧠 Painel de Sentimento da IA para Ethereum (ETH)")
+        sc_tot = 0.0
+        cont = 0
+        for n in lista_noticias:
+            t = n.get('title', '')
+            if "eth" in t.lower() or "ethereum" in t.lower() or "market" in t.lower() or "crypto" in t.lower():
+                sc = ia_analisar_sentimento(t)
+                sc_tot += sc
+                cont += 1
+                st.write(f"🔹 {t}")
+        sc_med = sc_tot / cont if cont > 0 else 0.0
+        
+        sent_ia = "NEUTRO"
+        if sc_med > 0.05:
+            st.success(f"🟢 OTIMISTA (Score: {sc_med:+.2f})")
+            sent_ia = "OTIMISTA"
+        elif sc_med < -0.05:
+            st.error(f"🔴 PESSIMISTA (Score: {sc_med:+.2f})")
+            sent_ia = "PESSIMISTA"
+        else:
+            st.warning(f"🟡 NEUTRO (Score: {sc_med:+.2f})")
             
-            # LÓGICA DE DISPARO DO TELEGRAM EM TEMPO REAL
-            if rsi_atual <= 30 and sentimento_final_ia == "OTIMISTA":
-                st.success(f"🔥 SINAL MÁXIMO DE COMPRA! Técnico e IA de notícias confirmam entrada ultra segura em {nome_moeda}.")
-                msg = f"🚨 *Crypto Bot AI Alerta!* 🚨\n\n🔥 *SINAL MÁXIMO DE COMPRA* detectado para *{nome_moeda}*!\n\n📈 Preço Atual: ${preco_atual:,.2f}\n📊 Indicador RSI: {rsi_atual:.1f}\n🧠 Sentimento da IA: {sentimento_final_ia}\n\n_Acesse o painel para acompanhar!_"
-                enviar_alerta_telegram(msg)
-            elif rsi_atual >= 65 and sentimento_final_ia == "PESSIMISTA":
-                st.warning(f"⚠️ AVISO DE REALIZAÇÃO COMPLETA! Gráfico saturado e IA detectando notícias negativas.")
-                msg = f"⚠️ *Crypto Bot AI Alerta!* ⚠️\n\n🔴 *AVISO DE VENDA/REALIZAÇÃO* para *{nome_moeda}*!\n\n📈 Preço Atual: ${preco_atual:,.2f}\n📊 Indicador RSI: {rsi_atual:.1f}\n🧠 Sentimento da IA: {sentimento_final_ia}"
-                enviar_alerta_telegram(msg)
-            else:
+        st.markdown("### 🤖 Veredito do Robô em Tempo Real")
+        if ult_eth['rsi_14'] <= 30 and sent_ia == "OTIMISTA":
+            st.success("🔥 SINAL MÁXIMO DE COMPRA! Técnico e IA confirmam entrada segura.")
+            enviar_alerta_telegram(f"🚨 Alerta! Sinal Máximo de COMPRA para Ethereum (ETH): ${ult_eth['fechamento']:,.2f}")
+        elif ult_eth['rsi_14'] >= 65 and sent_ia == "PESSIMISTA":
+            st.warning("⚠️ AVISO DE REALIZAÇÃO COMPLETA! Gráfico saturado.")
+        else:

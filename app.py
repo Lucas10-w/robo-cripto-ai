@@ -11,13 +11,25 @@ st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
-# FUNÇÃO DE CAPTURA VIA YAHOO FINANCE (Totalmente imune a bloqueios de nuvem)
+# 1. CRIAÇÃO DAS ABAS INTERATIVAS (BTC, ETH, SOL)
+# ==============================================================================
+aba_btc, aba_eth, aba_sol = st.tabs(["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
+
+# Configurações de cada moeda para a busca no Yahoo Finance
+config_moedas = {
+    "Bitcoin (BTC)": {"ticker": "BTC-USD", "aba": aba_btc},
+    "Ethereum (ETH)": {"ticker": "ETH-USD", "aba": aba_eth},
+    "Solana (SOL)": {"ticker": "SOL-USD", "aba": aba_sol}
+}
+
+# ==============================================================================
+# FUNÇÃO DE CAPTURA ORIGINAL ADAPTADA PARA MULTIMOEDAS
 # ==============================================================================
 @st.cache_data(ttl=60)
-def buscar_dados_e_indicadores():
+def buscar_dados_e_indicadores(ticker_name):
     try:
-        # Puxa os dados diários do Bitcoin dos últimos 60 dias diretamente do Yahoo Finance
-        ticker = yf.Ticker("BTC-USD")
+        # Puxa os dados diários da moeda selecionada dos últimos 60 dias
+        ticker = yf.Ticker(ticker_name)
         df_historico = ticker.history(period="60d", interval="1d")
         
         if df_historico.empty:
@@ -67,57 +79,60 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# EXECUÇÃO DO PROJETO E INTERFACE VISUAL
+# RENDERIZAÇÃO DAS ABAS DE FORMA INDEPENDENTE
 # ==============================================================================
-df_mercado = buscar_dados_e_indicadores()
+for nome_moeda, info in config_moedas.items():
+    with info["aba"]:
+        df_mercado = buscar_dados_e_indicadores(info["ticker"])
+        
+        if df_mercado is not None:
+            capital_final, df_trades = rodar_simulador(df_mercado)
+            lucro_total = ((capital_final - 1000.0) / 1000.0) * 100
+            
+            ultima_linha = df_mercado.iloc[-1]
+            preco_atual = ultima_linha['fechamento']
+            rsi_atual = ultima_linha['rsi_14']
+            
+            # BLOCOS SUPERIORES DE MÉTRICAS (MANTIDO IDÊNTICO)
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.subheader("💲 Preço Atual")
+                st.info(f"${preco_atual:,.2f}")
+            with col2:
+                st.subheader("📈 Força RSI")
+                st.info(f"{rsi_atual:.2f}")
+            with col3:
+                st.subheader("📊 Lucro Mês")
+                st.success(f"{lucro_total:+.2f}%")
+            with col4:
+                st.subheader("💰 Saldo Total")
+                st.success(f"${capital_final:,.2f}")
+            
+            st.markdown(f"### 🤖 Veredito para {nome_moeda} em Tempo Real")
+            if rsi_atual <= 30:
+                st.success(f"🟢 SINAL DE COMPRA ATIVO! {nome_moeda} está em região de barganha absoluta.")
+            elif rsi_atual >= 65:
+                st.warning(f"🔴 SINAL DE REALIZAÇÃO / VENDA! {nome_moeda} atingiu o topo de exaustão.")
+            else:
+                st.info(f"🟡 STATUS: AGUARDANDO. {nome_moeda} está em zona neutra. Protegendo seu patrimônio fora de risco.")
 
-if df_mercado is not None:
-    capital_final, df_trades = rodar_simulador(df_mercado)
-    lucro_total = ((capital_final - 1000.0) / 1000.0) * 100
-    
-    ultima_linha = df_mercado.iloc[-1]
-    preco_atual = ultima_linha['fechamento']
-    rsi_atual = ultima_linha['rsi_14']
-    
-    # BLOCOS SUPERIORES DE MÉTRICAS
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.subheader("💲 Preço Atual")
-        st.info(f"${preco_atual:,.2f}")
-    with col2:
-        st.subheader("📈 Força RSI")
-        st.info(f"{rsi_atual:.2f}")
-    with col3:
-        st.subheader("📊 Lucro Mês")
-        st.success(f"{lucro_total:+.2f}%")
-    with col4:
-        st.subheader("💰 Saldo Total")
-        st.success(f"${capital_final:,.2f}")
-    
-    st.markdown("### 🤖 Veredito do Robô em Tempo Real")
-    if rsi_atual <= 30:
-        st.success("🟢 SINAL DE COMPRA ATIVO! O mercado está em região de barganha absoluta.")
-    elif rsi_atual >= 65:
-        st.warning("🔴 SINAL DE REALIZAÇÃO / VENDA! O mercado atingiu o topo de exaustão.")
-    else:
-        st.info("🟡 STATUS: AGUARDANDO. O mercado está em zona neutra. Protegendo seu patrimônio fora de risco.")
+            # GRÁFICO BLINDADO EM MATPLOTLIB REPLICADO POR MOEDA
+            st.markdown("### 📈 Gráfico de Análise Avançada")
+            plt.style.use('dark_background')
+            fig, ax = plt.subplots(figsize=(12, 4))
+            ax.plot(df_mercado['date'], df_mercado['fechamento'], label=f'Preço {nome_moeda}', color='#00ffcc', linewidth=1.5)
+            ax.plot(df_mercado['date'], df_mercado['ema_20'], label='Tendência (EMA 20)', color='#ff9900', linestyle='--')
+            ax.legend(loc='upper left')
+            ax.grid(True, alpha=0.1)
+            plt.tight_layout()
+            st.pyplot(fig)
+            plt.close(fig) # Fecha a figura para não misturar dados na memória
 
-    # GRÁFICO BLINDADO EM MATPLOTLIB
-    st.markdown("### 📈 Gráfico de Análise Avançada")
-    plt.style.use('dark_background')
-    fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(df_mercado['date'], df_mercado['fechamento'], label='Preço BTC', color='#00ffcc', linewidth=1.5)
-    ax.plot(df_mercado['date'], df_mercado['ema_20'], label='Tendência (EMA 20)', color='#ff9900', linestyle='--')
-    ax.legend(loc='upper left')
-    ax.grid(True, alpha=0.1)
-    plt.tight_layout()
-    st.pyplot(fig)
-
-    # TABELA EM TEXTO LEVE
-    st.markdown("### 📜 Histórico de Transações Efetuadas (Últimos 30 Dias)")
-    if not df_trades.empty:
-        st.text(df_trades.to_string(index=False))
-    else:
-        st.write("Nenhuma operação aberta nesta região de filtro extremo de segurança.")
-else:
-    st.error("Conectando aos servidores estáveis da rede... Dê F5 na página em alguns segundos para sincronizar.")
+            # TABELA EM TEXTO LEVE
+            st.markdown("### 📜 Histórico de Transações Efetuadas (Últimos 30 Dias)")
+            if not df_trades.empty:
+                st.text(df_trades.to_string(index=False))
+            else:
+                st.write(f"Nenhuma operação aberta para {nome_moeda} nesta região de filtro extremo de segurança.")
+        else:
+            st.error(f"Sincronizando dados de {nome_moeda}... Dê F5 na página em alguns segundos para carregar.")

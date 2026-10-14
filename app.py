@@ -1,7 +1,6 @@
 import streamlit as st
 import ccxt
 import pandas as pd
-import ta
 import matplotlib.pyplot as plt
 from datetime import datetime
 
@@ -11,21 +10,26 @@ st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
 st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
-# FUNÇÕES DE BACK-END
+# ==============================================================================
+# FUNÇÕES DE BACK-END (COM CORREÇÃO PARA A NUVEM)
+# ==============================================================================
 @st.cache_data(ttl=30)
 def buscar_dados_e_indicadores():
     try:
+        # Importa a biblioteca leve de análise técnica aceita na nuvem
+        import pandas_ta as ta_analytics
+        
         exchange = ccxt.binance()
         ohlcv = exchange.fetch_ohlcv('BTC/USDT', '1h', limit=720)
         colunas = ['timestamp', 'abertura', 'maxima', 'minima', 'fechamento', 'volume']
         df = pd.DataFrame(ohlcv, columns=colunas)
         df['data'] = pd.to_datetime(df['timestamp'], unit='ms')
         
-        # Indicadores
-        df['ema_20'] = ta.trend.ema_indicator(close=df['fechamento'], window=20)
-        df['rsi_14'] = ta.momentum.rsi(close=df['fechamento'], window=14)
+        # Indicadores calculados usando a nova biblioteca compatível
+        df['ema_20'] = ta_analytics.ema(df['fechamento'], length=20)
+        df['rsi_14'] = ta_analytics.rsi(df['fechamento'], length=14)
         return df.dropna()
-    except:
+    except Exception as e:
         return None
 
 def rodar_simulador(df):
@@ -53,6 +57,9 @@ def rodar_simulador(df):
             
     return capital, pd.DataFrame(trades)
 
+# ==============================================================================
+# EXECUÇÃO DO PROJETO E INTERFACE VISUAL
+# ==============================================================================
 df_mercado = buscar_dados_e_indicadores()
 
 if df_mercado is not None:
@@ -63,7 +70,7 @@ if df_mercado is not None:
     preco_atual = ultima_linha['fechamento']
     rsi_atual = ultima_linha['rsi_14']
     
-    # BLOCOS SUPERIORES 
+    # BLOCOS SUPERIORES DE MÉTRICAS (IGUAL AO ANTERIOR)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.subheader("💲 Preço Atual")
@@ -86,7 +93,7 @@ if df_mercado is not None:
     else:
         st.info("🟡 STATUS: AGUARDANDO. O mercado está em zona neutra. Protegendo seu patrimônio fora de risco.")
 
-    # GRÁFICO BLINDADO EM MATPLOTLIB
+    # GRÁFICO BLINDADO EM MATPLOTLIB (ORIGINAL LEVE)
     st.markdown("### 📈 Gráfico de Análise Avançada")
     plt.style.use('dark_background')
     fig, ax = plt.subplots(figsize=(12, 4))
@@ -97,9 +104,11 @@ if df_mercado is not None:
     plt.tight_layout()
     st.pyplot(fig)
 
-    # TABELA EM TEXTO 
+    # TABELA EM TEXTO LEVE (IGUAL AO ANTERIOR)
     st.markdown("### 📜 Histórico de Transações Efetuadas (Últimos 30 Dias)")
     if not df_trades.empty:
         st.markdown(df_trades.to_markdown(index=False))
     else:
         st.write("Nenhuma operação aberta nesta região de filtro extremo de segurança.")
+else:
+    st.error("Erro ao carregar dados do mercado. Aguarde alguns segundos para atualizar.")

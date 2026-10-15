@@ -126,7 +126,6 @@ def buscar_noticias_cripto():
 def buscar_dados_e_indicadores(ticker_name):
     try:
         import yfinance as yf
-        # HISTÓRICO AMPLIADO: Mudado de 30d para 90d para alimentar o gráfico e o simulador longo
         df_historico = yf.Ticker(ticker_name).history(period="90d", interval="1d")
         if df_historico.empty: return None
         df = df_historico.reset_index()
@@ -163,42 +162,6 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# FUNÇÃO DO GRÁFICO BLINDADO EM TEXTO (MANTIDO HISTÓRICO PROPORCIONAL)
-# ==============================================================================
-def gerar_grafico_texto_blindado(df):
-    precos = df['fechamento'].tail(24).tolist()
-    datas = df['date'].tail(24).dt.strftime('%d/%m').tolist()
-    
-    if not precos: 
-        return "Sem dados suficientes."
-    
-    min_p = min(precos)
-    max_p = max(precos)
-    intervalo = (max_p - min_p) if (max_p - min_p) > 0 else 1
-    
-    altura = 8
-    linhas_grafico = []
-    
-    for r in range(altura, -1, -1):
-        valor_linha = min_p + (r / altura) * intervalo
-        linha_txt = f"${valor_linha:,.0f} ┤ "
-        
-        for p in precos:
-            posicao_p = int(((p - min_p) / intervalo) * altura)
-            if posicao_p == r:
-                linha_txt += "██ "
-            else:
-                linha_txt += "░░ "
-        linhas_grafico.append(linha_txt)
-        
-    eixo_x = "       └─" + "──" * len(precos)
-    legenda_datas = "         " + " ".join(datas[::3])
-    
-    linhas_grafico.append(eixo_x)
-    linhas_grafico.append(legenda_datas)
-    return "\n".join(linhas_grafico)
-
-# ==============================================================================
 # HUB VISUAL DO PAINEL
 # ==============================================================================
 lista_noticias = buscar_noticias_cripto()
@@ -216,7 +179,32 @@ if df_mercado is not None:
     preco_atual = ult['fechamento']
     rsi_atual = ult['rsi_14']
     
-    col1, col2, col3, col4 = st.columns(4)
+    # CORREÇÃO CRÍTICA: Ajustado para 3 colunas exatas que estão sendo usadas na tela
+    col1, col2, col3 = st.columns(3)
     col1.metric("Preço Atual", f"${preco_atual:,.2f}")
     col2.metric("Força RSI", f"{rsi_atual:.2f}")
     col3.metric("Lucro Mês (Simulado)", f"{lucro_total:+.2f}%")
+    
+    st.markdown("### 🧠 Painel de Sentimento da IA")
+    for n in lista_noticias:
+        st.write(f"🔹 {n.get('title', '')}")
+        
+    sc_tot = sum([ia_analisar_sentimento(n.get('title', '')) for n in lista_noticias])
+    sc_med = sc_tot / len(lista_noticias) if lista_noticias else 0.0
+    sent_ia = "OTIMISTA" if sc_med > 0.05 else ("PESSIMISTA" if sc_med < -0.05 else "NEUTRO")
+    
+    st.write(f"👉 **Veredito de Texto da IA:** {sent_ia} (Score: {sc_med:+.2f})")
+    
+    st.markdown("### 🤖 Veredito do Robô em Tempo Real")
+    if rsi_atual <= 30 and sent_ia == "OTIMISTA":
+        st.success("🔥 SINAL DE COMPRA ATIVO! Disparando ordem real de $6 na Bybit...")
+        executar_ordem_real_bybit("COMPRA", ticker_yf)
+    elif rsi_atual >= 65 and sent_ia == "PESSIMISTA":
+        st.warning("🔴 SINAL DE VENDA ATIVO! Realizando lucros na Bybit...")
+        executar_ordem_real_bybit("VENDA", ticker_yf)
+    else:
+        st.info("🟡 STATUS: AGUARDANDO. Mercado fora dos filtros de certeza absoluta. Capital protegido na Bybit.")
+        
+    # 🔄 GRÁFICO DE ÁREA BLINDADO: Renderiza perfeitamente em qualquer servidor de nuvem
+    st.markdown("### 📈 Gráfico de Análise Avançada (Tendência de Preços)")
+    df_grafico = df_mercado.copy()

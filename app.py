@@ -1,17 +1,18 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 import yfinance as yf
+from datetime import datetime
 import urllib.request
 import json
 import hmac
 import hashlib
 import time
-from datetime import datetime
 
 # Configuração da Página Web ORIGINAL
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
 
-st.title("🤖 Crypto Bot AI - Bybit Automatizado")
+st.title("🤖 Crypto Bot AI - Painel de Controle Quantitativo")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
@@ -37,7 +38,7 @@ def enviar_alerta_telegram(mensagem):
 # ==============================================================================
 def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
     if modo_real_ativo != "sim" or api_key_real == "" or secret_key_real == "":
-        st.warning("⚠️ Chaves de API não detectadas. Operando em Modo Simulador de Alta Precisão.")
+        st.warning("⚠️ Modo Real desativado nos Secrets. Operando em Modo Simulador Protegido.")
         return False
         
     try:
@@ -124,7 +125,7 @@ def buscar_noticias_cripto():
     ]
 
 # ==============================================================================
-# CRIAÇÃO DAS ABAS INTERATIVAS ORIGINAL BLINDADA (BTC, ETH, SOL)
+# CRIAÇÃO DAS ABAS INTERATIVAS (BTC, ETH, SOL)
 # ==============================================================================
 aba_btc, aba_eth, aba_sol = st.tabs(["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
 
@@ -175,7 +176,7 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# RENDERIZAÇÃO CENTRALIZADA ORIGINAL
+# RENDERIZAÇÃO CENTRALIZADA
 # ==============================================================================
 lista_noticias = buscar_noticias_cripto()
 
@@ -191,7 +192,7 @@ for nome_moeda, info in config_moedas.items():
             preco_atual = ultima_linha['fechamento']
             rsi_atual = ultima_linha['rsi_14']
             
-            # BLOCOS SUPERIORES DE MÉTRICAS COMPLETO
+            # BLOCOS SUPERIORES DE MÉTRICAS
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.subheader("💲 Preço Atual")
@@ -205,7 +206,7 @@ for nome_moeda, info in config_moedas.items():
             with col4:
                 st.subheader("💰 Saldo Total")
                 st.success(f"${capital_final:,.2f}")
-                
+            
             # Painel de Análise de Notícias com IA
             st.markdown(f"### 🧠 Painel de Sentimento da IA para {nome_moeda}")
             col_noticias, col_status_ia = st.columns(2)

@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 import urllib.request
 import json
 import hmac
@@ -7,9 +8,11 @@ import hashlib
 import time
 from datetime import datetime
 
+# Configuração da Página Web ORIGINAL
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
+
 st.title("🤖 Crypto Bot AI - Bybit Automatizado")
-st.markdown("Aqui você acompanha a IA analisando e operando no mercado real da Bybit com filtros de certeza absoluta.")
+st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
 # CONFIGURAÇÕES DE SEGURANÇA E TELEGRAM
@@ -99,7 +102,7 @@ def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
         return False
 
 # ==============================================================================
-# MOTORES DE INTELIGÊNCIA ARTIFICIAL E DADOS ORIGINAIS
+# MOTOR DE INTELIGÊNCIA ARTIFICIAL: ANÁLISE DE SENTIMENTO NATIVA
 # ==============================================================================
 def ia_analisar_sentimento(texto):
     palavras_otimistas = ['bullish', 'surge', 'rise', 'buy', 'accumulate', 'gain', 'growth', 'positive', 'high', 'clear', 'green', 'support']
@@ -122,20 +125,32 @@ def buscar_noticias_cripto():
     except:
         return [{"title": "Bitcoin institutions continue steady accumulation in secure zones"}]
 
+# ==============================================================================
+# CRIAÇÃO DAS ABAS INTERATIVAS ORIGINAL BLINDADA (BTC, ETH, SOL)
+# ==============================================================================
+aba_btc, aba_eth, aba_sol = st.tabs(["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
+
+config_moedas = {
+    "Bitcoin (BTC)": {"ticker": "BTC-USD", "aba": aba_btc},
+    "Ethereum (ETH)": {"ticker": "ETH-USD", "aba": aba_eth},
+    "Solana (SOL)": {"ticker": "SOL-USD", "aba": aba_sol}
+}
+
 @st.cache_data(ttl=60)
 def buscar_dados_e_indicadores(ticker_name):
     try:
-        import yfinance as yf
-        df_historico = yf.Ticker(ticker_name).history(period="90d", interval="1d")
+        df_historico = yf.Ticker(ticker_name).history(period="60d", interval="1d")
         if df_historico.empty: return None
         df = df_historico.reset_index()
         df.columns = [col.lower() for col in df.columns]
         df = df.rename(columns={'close': 'fechamento'})
+        
         df['ema_20'] = df['fechamento'].ewm(span=20, adjust=False).mean()
         delta = df['fechamento'].diff()
         ganho = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         perda = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        df['rsi_14'] = 100 - (100 / (1 + (ganho / (perda + 0.00001))))
+        rs = ganho / (perda + 0.00001)
+        df['rsi_14'] = 100 - (100 / (1 + rs))
         return df.dropna()
     except: return None
 
@@ -152,7 +167,7 @@ def rodar_simulador(df):
         if rsi <= 30.0 and posicao == 0:
             posicao = 1
             preco_compra = preco
-            trades.append({"Tipo": "🟢 COMPRA", "Data": pd.to_datetime(data).strftime('%d/%m/%Y'), "Preço": f"${preco:,.2f}", "RSI": f"{rsi:.1f}", "Resultado": "Em aberto"})
+            trades.append({"Tipo": "🟢 COMPRA", "Data": data.strftime('%d/%m/%Y'), "Preço": f"${preco:,.2f}", "RSI": f"{rsi:.1f}", "Resultado": "Em aberto"})
         elif rsi >= 65.0 and posicao == 1:
             posicao = 0
             lucro = (preco - preco_compra) / preco_compra
@@ -162,49 +177,45 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# HUB VISUAL DO PAINEL
+# RENDERIZAÇÃO CENTRALIZADA ORIGINAL
 # ==============================================================================
 lista_noticias = buscar_noticias_cripto()
-moeda_selecionada = st.selectbox("Escolha o ativo para analisar:", ["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
 
-mapeamento = {"🪙 Bitcoin (BTC)": "BTC-USD", "⧫ Ethereum (ETH)": "ETH-USD", "☀️ Solana (SOL)": "SOL-USD"}
-ticker_yf = mapeamento[moeda_selecionada]
-
-df_mercado = buscar_dados_e_indicadores(ticker_yf)
-
-if df_mercado is not None:
-    capital_final, df_trades = rodar_simulador(df_mercado)
-    lucro_total = ((capital_final - 1000.0) / 1000.0) * 100
-    ult = df_mercado.iloc[-1]
-    preco_atual = ult['fechamento']
-    rsi_atual = ult['rsi_14']
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Preço Atual", f"${preco_atual:,.2f}")
-    col2.metric("Força RSI", f"{rsi_atual:.2f}")
-    col3.metric("Lucro Mês (Simulado)", f"{lucro_total:+.2f}%")
-    
-    st.markdown("### 🧠 Painel de Sentimento da IA")
-    for n in lista_noticias:
-        st.write(f"🔹 {n.get('title', '')}")
+for nome_moeda, info in config_moedas.items():
+    with info["aba"]:
+        df_mercado = buscar_dados_e_indicadores(info["ticker"])
         
-    sc_tot = sum([ia_analisar_sentimento(n.get('title', '')) for n in lista_noticias])
-    sc_med = sc_tot / len(lista_noticias) if lista_noticias else 0.0
-    sent_ia = "OTIMISTA" if sc_med > 0.05 else ("PESSIMISTA" if sc_med < -0.05 else "NEUTRO")
-    
-    st.write(f"👉 **Veredito de Texto da IA:** {sent_ia} (Score: {sc_med:+.2f})")
-    
-    st.markdown("### 🤖 Veredito do Robô em Tempo Real")
-    if rsi_atual <= 30 and sent_ia == "OTIMISTA":
-        st.success("🔥 SINAL DE COMPRA ATIVO! Disparando ordem real de $6 na Bybit...")
-        executar_ordem_real_bybit("COMPRA", ticker_yf)
-    elif rsi_atual >= 65 and sent_ia == "PESSIMISTA":
-        st.warning("🔴 SINAL DE VENDA ATIVO! Realizando lucros na Bybit...")
-        executar_ordem_real_bybit("VENDA", ticker_yf)
-    else:
-        st.info("🟡 STATUS: AGUARDANDO. Mercado fora dos filtros de certeza absoluta. Capital protegido na Bybit.")
-        
-    # 🔄 MUDANÇA INFALÍVEL: Gráfico de Linha Puro usando dados nativos sem quebra de índice
-    st.markdown("### 📈 Gráfico de Análise Avançada (Tendência de Preços)")
-    df_grafico = df_mercado[['fechamento', 'ema_20']].copy()
-    df_grafico.columns = ['Preço Real ($)', 'Média Móvel (EMA 20)']
+        if df_mercado is not None:
+            capital_final, df_trades = rodar_simulador(df_mercado)
+            lucro_total = ((capital_final - 1000.0) / 1000.0) * 100
+            
+            ultima_linha = df_mercado.iloc[-1]
+            preco_atual = ultima_linha['fechamento']
+            rsi_atual = ultima_linha['rsi_14']
+            
+            # BLOCOS SUPERIORES DE MÉTRICAS COMPLETO
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.subheader("💲 Preço Atual")
+                st.info(f"${preco_atual:,.2f}")
+            with col2:
+                st.subheader("📈 Força RSI")
+                st.info(f"{rsi_atual:.2f}")
+            with col3:
+                st.subheader("📊 Lucro Mês")
+                st.success(f"{lucro_total:+.2f}%")
+            with col4:
+                st.subheader("💰 Saldo Total")
+                st.success(f"${capital_final:,.2f}")
+            
+            # Painel de Análise de Notícias com IA
+            st.markdown(f"### 🧠 Painel de Sentimento da IA para {nome_moeda}")
+            col_noticias, col_status_ia = st.columns(2)
+            
+            with col_noticias:
+                st.markdown("**Feed de Notícias Recentes Detectadas:**")
+                score_total_ia = 0.0
+                contador_noticias = 0
+                
+                for item in lista_noticias:
+                    titulo = item.get('title', '')

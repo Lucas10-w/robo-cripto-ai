@@ -43,12 +43,10 @@ def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
         return False
         
     try:
-        # Traduz o par para o formato Bybit (ex: BTCUSDT)
         moeda = "BTC" if "BTC" in simbolo_yf else ("ETH" if "ETH" in simbolo_yf else "SOL")
         symbol = f"{moeda}USDT"
         side = "Buy" if tipo_ordem == "COMPRA" else "Sell"
         
-        # Cria os parâmetros da ordem a mercado com base na sua banca ($6 por ordem)
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
@@ -57,10 +55,9 @@ def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
             "symbol": symbol,
             "side": side,
             "orderType": "Market",
-            "qty": "6" if side == "Buy" else "0" # "0" indica que vai vender o saldo disponível
+            "qty": "6" if side == "Buy" else "0"
         }
         
-        # Se for venda, precisamos puxar o saldo antes para saber a quantidade exata
         if side == "Sell":
             timestamp_bal = str(int(time.time() * 1000))
             param_str_bal = f"timestamp={timestamp_bal}&api_key={api_key_real}&recv_window={recv_window}&category=spot"
@@ -69,8 +66,7 @@ def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
             req_bal = urllib.request.Request(url_bal, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req_bal) as r_bal:
                 res_bal = json.loads(r_bal.read().decode())
-                # Encontra a quantidade da moeda para vender
-                list_bal = res_bal.get("result", {}).get("list", [{}])[0].get("coin", [])
+                list_bal = res_bal.get("result", {}).get("list", [{}]).get("coin", [])
                 for c in list_bal:
                     if c.get("coin") == moeda:
                         params["qty"] = str(c.get("walletBalance", "0"))
@@ -78,7 +74,6 @@ def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
             if params["qty"] == "0" or params["qty"] == "0.0":
                 return False
 
-        # Prepara a assinatura digital segura exigida pela Bybit
         req_body = json.dumps(params)
         param_str = timestamp + api_key_real + recv_window + req_body
         signature = hmac.new(bytes(secret_key_real, "utf-8"), param_str.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -135,6 +130,7 @@ def buscar_noticias_cripto():
 @st.cache_data(ttl=60)
 def buscar_dados_e_indicadores(ticker_name):
     try:
+        import yfinance as yf
         df_historico = yf.Ticker(ticker_name).history(period="60d", interval="1d")
         if df_historico.empty: return None
         df = df_historico.reset_index()
@@ -205,6 +201,13 @@ if df_mercado is not None:
     
     st.markdown("### 🤖 Veredito do Robô em Tempo Real")
     if rsi_atual <= 30 and sent_ia == "OTIMISTA":
-        st.success(f"🔥 SINAL DE COMPRA ATIVO! Disparando ordem real de $6 na Bybit...")
+        st.success("🔥 SINAL DE COMPRA ATIVO! Disparando ordem real de $6 na Bybit...")
         executar_ordem_real_bybit("COMPRA", ticker_yf)
     elif rsi_atual >= 65 and sent_ia == "PESSIMISTA":
+        st.warning("🔴 SINAL DE VENDA ATIVO! Realizando lucros na Bybit...")
+        executar_ordem_real_bybit("VENDA", ticker_yf)
+    else:
+        st.info("🟡 STATUS: AGUARDANDO. Mercado fora dos filtros de certeza absoluta. Capital protegido na Bybit.")
+        
+    fig, ax = plt.subplots(figsize=(12, 3))
+    ax.plot(df_mercado['date'], df_mercado['fechamento'], color='#00ffcc')

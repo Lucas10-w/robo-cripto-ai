@@ -15,7 +15,7 @@ st.title("🤖 Crypto Bot AI - Bybit Automatizado")
 st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
 # ==============================================================================
-# CONFIGURAÇÕES DE SEGURANÇA E TELEGRAM (CONEXÃO RESTAURADA)
+# CONFIGURAÇÕES DE SEGURANÇA E TELEGRAM
 # ==============================================================================
 TELEGRAM_TOKEN = "8659842719:AAHzgJe_6dh-GPxrEjOwqaQ8-Z2HdvTjEUg"
 TELEGRAM_CHAT_ID = "5977741363"
@@ -33,7 +33,7 @@ def enviar_alerta_telegram(mensagem):
     except: pass
 
 # ==============================================================================
-# FUNÇÃO DE EXECUÇÃO DIRETA NA API DA BYBIT (MODO REAL AUTOMÁTICO)
+# FUNÇÃO DE EXECUÇÃO DIRETA NA API DA BYBIT
 # ==============================================================================
 def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
     if modo_real_ativo != "sim" or api_key_real == "" or secret_key_real == "":
@@ -175,7 +175,7 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# RENDERIZAÇÃO CENTRALIZADA ORIGINAL (CORRIGIDA)
+# RENDERIZAÇÃO CENTRALIZADA ORIGINAL
 # ==============================================================================
 lista_noticias = buscar_noticias_cripto()
 
@@ -191,7 +191,7 @@ for nome_moeda, info in config_moedas.items():
             preco_atual = ultima_linha['fechamento']
             rsi_atual = ultima_linha['rsi_14']
             
-            # BLOCOS SUPERIORES DE MÉTRICAS COMPLETO (LUCRO DE RESTRUTURADO)
+            # BLOCOS SUPERIORES DE MÉTRICAS COMPLETO
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.subheader("💲 Preço Atual")

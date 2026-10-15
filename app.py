@@ -179,7 +179,6 @@ if df_mercado is not None:
     preco_atual = ult['fechamento']
     rsi_atual = ult['rsi_14']
     
-    # CORREÇÃO CRÍTICA: Ajustado para 3 colunas exatas que estão sendo usadas na tela
     col1, col2, col3 = st.columns(3)
     col1.metric("Preço Atual", f"${preco_atual:,.2f}")
     col2.metric("Força RSI", f"{rsi_atual:.2f}")
@@ -205,6 +204,7 @@ if df_mercado is not None:
     else:
         st.info("🟡 STATUS: AGUARDANDO. Mercado fora dos filtros de certeza absoluta. Capital protegido na Bybit.")
         
-    # 🔄 GRÁFICO DE ÁREA BLINDADO: Renderiza perfeitamente em qualquer servidor de nuvem
+    # 🔄 MUDANÇA INFALÍVEL: Gráfico de Linha Puro usando dados nativos sem quebra de índice
     st.markdown("### 📈 Gráfico de Análise Avançada (Tendência de Preços)")
-    df_grafico = df_mercado.copy()
+    df_grafico = df_mercado[['fechamento', 'ema_20']].copy()
+    df_grafico.columns = ['Preço Real ($)', 'Média Móvel (EMA 20)']

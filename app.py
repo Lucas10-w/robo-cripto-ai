@@ -126,7 +126,8 @@ def buscar_noticias_cripto():
 def buscar_dados_e_indicadores(ticker_name):
     try:
         import yfinance as yf
-        df_historico = yf.Ticker(ticker_name).history(period="30d", interval="1d")
+        # HISTÓRICO AMPLIADO: Mudado de 30d para 90d para alimentar o gráfico e o simulador longo
+        df_historico = yf.Ticker(ticker_name).history(period="90d", interval="1d")
         if df_historico.empty: return None
         df = df_historico.reset_index()
         df.columns = [col.lower() for col in df.columns]
@@ -148,7 +149,7 @@ def rodar_simulador(df):
         linha = df.iloc[i]
         preco = linha['fechamento']
         rsi = linha['rsi_14']
-        data = connectivity_date = linha['date']
+        data = linha['date']
         if rsi <= 30.0 and posicao == 0:
             posicao = 1
             preco_compra = preco
@@ -162,16 +163,15 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# FUNÇÃO DO GRÁFICO BLINDADO EM TEXTO (CORRIGIDA)
+# FUNÇÃO DO GRÁFICO BLINDADO EM TEXTO (MANTIDO HISTÓRICO PROPORCIONAL)
 # ==============================================================================
 def gerar_grafico_texto_blindado(df):
-    precos = df['fechamento'].tail(20).tolist()
-    datas = df['date'].tail(20).dt.strftime('%d/%m').tolist()
+    precos = df['fechamento'].tail(24).tolist()
+    datas = df['date'].tail(24).dt.strftime('%d/%m').tolist()
     
     if not precos: 
         return "Sem dados suficientes."
     
-    # LINHA CORRIGIDA SEM DUPLICIDADE
     min_p = min(precos)
     max_p = max(precos)
     intervalo = (max_p - min_p) if (max_p - min_p) > 0 else 1
@@ -192,7 +192,7 @@ def gerar_grafico_texto_blindado(df):
         linhas_grafico.append(linha_txt)
         
     eixo_x = "       └─" + "──" * len(precos)
-    legenda_datas = "         " + " ".join(datas[::2])
+    legenda_datas = "         " + " ".join(datas[::3])
     
     linhas_grafico.append(eixo_x)
     linhas_grafico.append(legenda_datas)
@@ -220,5 +220,3 @@ if df_mercado is not None:
     col1.metric("Preço Atual", f"${preco_atual:,.2f}")
     col2.metric("Força RSI", f"{rsi_atual:.2f}")
     col3.metric("Lucro Mês (Simulado)", f"{lucro_total:+.2f}%")
-    col4.metric("Saldo Total (Simulado)", f"${capital_final:,.2f}")
-    

@@ -146,13 +146,13 @@ def rodar_simulador(df):
     trades = []
     for i in range(len(df)):
         linha = df.iloc[i]
-        preco = linea = linha['fechamento']
+        preco = linha['fechamento']
         rsi = linha['rsi_14']
         data = linha['date']
         if rsi <= 30.0 and posicao == 0:
             posicao = 1
             preco_compra = preco
-            trades.append({"Tipo": "🟢 COMPRA", "Data": data.strftime('%d/%m/%Y'), "Preço": f"${preco:,.2f}", "RSI": f"{rsi:.1f}", "Resultado": "Em aberto"})
+            trades.append({"Tipo": "🟢 COMPRA", "Data": pd.to_datetime(data).strftime('%d/%m/%Y'), "Preço": f"${preco:,.2f}", "RSI": f"{rsi:.1f}", "Resultado": "Em aberto"})
         elif rsi >= 65.0 and posicao == 1:
             posicao = 0
             lucro = (preco - preco_compra) / preco_compra
@@ -204,6 +204,6 @@ if df_mercado is not None:
     else:
         st.info("🟡 STATUS: AGUARDANDO. Mercado fora dos filtros de certeza absoluta. Capital protegido na Bybit.")
         
-    # 🔄 ALTERAÇÃO HISTÓRICA: Gráfico oficial nativo do Streamlit (Totalmente visível na nuvem)
+    # 🔄 CORREÇÃO DO ÍNDICE: Converte a coluna de data para texto limpo antes de gerar o gráfico
     st.markdown("### 📈 Gráfico de Análise Avançada")
-    dados_grafico = df_mercado.set_index('date')[['fechamento', 'ema_20']]
+    df_grafico = df_mercado.copy()

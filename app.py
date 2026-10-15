@@ -1,13 +1,17 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import yfinance as yf
 import urllib.request
 import json
-import ccxt 
+import hmac
+import hashlib
+import time
 from datetime import datetime
 
-# Configuração da Página Web ORIGINAL
+# Configuração de segurança visual para a nuvem
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
 st.title("🤖 Crypto Bot AI - Bybit Automatizado")
 st.markdown("Aqui você acompanha a IA analisando e operando no mercado real da Bybit com filtros de certeza absoluta.")
@@ -31,36 +35,77 @@ def enviar_alerta_telegram(mensagem):
     except: pass
 
 # ==============================================================================
-# FUNÇÃO DE EXECUÇÃO DE ORDENS REAIS NA BYBIT (AJUSTADO PARA BANCA DE $20)
+# FUNÇÃO DE EXECUÇÃO DIRETA NA API DA BYBIT (NATIVA E ULTRA LEVE)
 # ==============================================================================
-def executar_ordem_real_bybit(tipo_ordem, simbolo_bybit):
+def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
     if modo_real_ativo != "sim" or api_key_real == "" or secret_key_real == "":
         st.warning("⚠️ Modo Real desativado nos Secrets. Operando em Modo Simulador Protegido.")
         return False
         
     try:
-        exchange = ccxt.bybit({
-            'apiKey': api_key_real,
-            'secret': secret_key_real,
-            'enableRateLimit': True,
-            'options': {'defaultType': 'spot'} 
-        })
+        # Traduz o par para o formato Bybit (ex: BTCUSDT)
+        moeda = "BTC" if "BTC" in simbolo_yf else ("ETH" if "ETH" in simbolo_yf else "SOL")
+        symbol = f"{moeda}USDT"
+        side = "Buy" if tipo_ordem == "COMPRA" else "Sell"
         
-        if tipo_ordem == "COMPRA":
-            # AJUSTADO: Compra o equivalente a $6 dólares para proteger sua banca de $20
-            ordem = exchange.create_market_buy_order(simbolo_bybit, 6)
-            enviar_alerta_telegram(f"💰 *EXECUÇÃO REAL NA BYBIT:* Comprei $6 de {simbolo_bybit} direto na sua conta!")
-        elif tipo_ordem == "VENDA":
-            balance = exchange.fetch_balance()
-            moeda_pura = simbolo_bybit.split('/')
-            quantidade_disponivel = balance['total'].get(moeda_pura, 0)
-            
-            if quantidade_disponivel > 0:
-                ordem = exchange.create_market_sell_order(simbolo_bybit, quantidade_disponivel)
-                enviar_alerta_telegram(f"💰 *EXECUÇÃO REAL NA BYBIT:* Vendi todo o saldo de {moeda_pura} na sua conta!")
-        return True
+        # Cria os parâmetros da ordem a mercado com base na sua banca ($6 por ordem)
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+        
+        params = {
+            "category": "spot",
+            "symbol": symbol,
+            "side": side,
+            "orderType": "Market",
+            "qty": "6" if side == "Buy" else "0" # "0" indica que vai vender o saldo disponível
+        }
+        
+        # Se for venda, precisamos puxar o saldo antes para saber a quantidade exata
+        if side == "Sell":
+            timestamp_bal = str(int(time.time() * 1000))
+            param_str_bal = f"timestamp={timestamp_bal}&api_key={api_key_real}&recv_window={recv_window}&category=spot"
+            sign_bal = hmac.new(bytes(secret_key_real, "utf-8"), param_str_bal.encode("utf-8"), hashlib.sha256).hexdigest()
+            url_bal = f"https://bybit.com{timestamp_bal}&api_key={api_key_real}&recv_window={recv_window}&sign={sign_bal}"
+            req_bal = urllib.request.Request(url_bal, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req_bal) as r_bal:
+                res_bal = json.loads(r_bal.read().decode())
+                # Encontra a quantidade da moeda para vender
+                list_bal = res_bal.get("result", {}).get("list", [{}])[0].get("coin", [])
+                for c in list_bal:
+                    if c.get("coin") == moeda:
+                        params["qty"] = str(c.get("walletBalance", "0"))
+                        break
+            if params["qty"] == "0" or params["qty"] == "0.0":
+                return False
+
+        # Prepara a assinatura digital segura exigida pela Bybit
+        req_body = json.dumps(params)
+        param_str = timestamp + api_key_real + recv_window + req_body
+        signature = hmac.new(bytes(secret_key_real, "utf-8"), param_str.encode("utf-8"), hashlib.sha256).hexdigest()
+        
+        headers = {
+            "X-BAPI-API-KEY": api_key_real,
+            "X-BAPI-SIGN": signature,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+        
+        url = "https://bybit.com"
+        req = urllib.request.Request(url, data=req_body.encode("utf-8"), headers=headers, method="POST")
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            if res.get("retCode") == 0:
+                if side == "Buy":
+                    enviar_alerta_telegram(f"💰 *EXECUÇÃO REAL NA BYBIT:* Comprei $6 de {symbol} direto na sua conta!")
+                else:
+                    enviar_alerta_telegram(f"💰 *EXECUÇÃO REAL NA BYBIT:* Vendi todo o saldo de {moeda} na sua conta!")
+                return True
+            else:
+                enviar_alerta_telegram(f"❌ *ERRO NA BYBIT:* Falha ao processar ordem: {res.get('retMsg')}")
+                return False
     except Exception as e:
-        enviar_alerta_telegram(f"❌ *ERRO NA BYBIT:* Falha ao enviar ordem automática: {str(e)}")
+        enviar_alerta_telegram(f"❌ *ERRO DE CONEXÃO:* Falha ao enviar ordem para a Bybit: {str(e)}")
         return False
 
 # ==============================================================================
@@ -131,8 +176,8 @@ def rodar_simulador(df):
 lista_noticias = buscar_noticias_cripto()
 moeda_selecionada = st.selectbox("Escolha o ativo para analisar:", ["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
 
-mapeamento = {"🪙 Bitcoin (BTC)": ("BTC-USD", "BTC/USDT"), "⧫ Ethereum (ETH)": ("ETH-USD", "ETH/USDT"), "☀️ Solana (SOL)": ("SOL-USD", "SOL/USDT")}
-ticker_yf, simbolo_bybit = mapeamento[moeda_selecionada]
+mapeamento = {"🪙 Bitcoin (BTC)": "BTC-USD", "⧫ Ethereum (ETH)": "ETH-USD", "☀️ Solana (SOL)": "SOL-USD"}
+ticker_yf = mapeamento[moeda_selecionada]
 
 df_mercado = buscar_dados_e_indicadores(ticker_yf)
 
@@ -160,22 +205,6 @@ if df_mercado is not None:
     
     st.markdown("### 🤖 Veredito do Robô em Tempo Real")
     if rsi_atual <= 30 and sent_ia == "OTIMISTA":
-        st.success(f"🔥 SINAL DE COMPRA ATIVO! Disparando ordem real de $6 na Bybit para {simbolo_bybit}...")
-        executar_ordem_real_bybit("COMPRA", simbolo_bybit)
+        st.success(f"🔥 SINAL DE COMPRA ATIVO! Disparando ordem real de $6 na Bybit...")
+        executar_ordem_real_bybit("COMPRA", ticker_yf)
     elif rsi_atual >= 65 and sent_ia == "PESSIMISTA":
-        st.warning(f"🔴 SINAL DE VENDA ATIVO! Realizando lucros de {simbolo_bybit} na Bybit...")
-        executar_ordem_real_bybit("VENDA", simbolo_bybit)
-    else:
-        st.info("🟡 STATUS: AGUARDANDO. Mercado fora dos filtros de certeza absoluta. Capital protegido na Bybit.")
-        
-    fig, ax = plt.subplots(figsize=(12, 3))
-    ax.plot(df_mercado['date'], df_mercado['fechamento'], color='#00ffcc')
-    ax.plot(df_mercado['date'], df_mercado['ema_20'], color='#ff9900', linestyle='--')
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
-    
-    st.markdown("### 📜 Histórico de Transações (Últimos 30 Dias)")
-    st.text(df_trades.to_string(index=False) if not df_trades.empty else "Nenhuma operação efetuada.")
-else:
-    st.error("Erro ao carregar dados do mercado.")

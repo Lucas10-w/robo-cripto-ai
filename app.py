@@ -1,218 +1,428 @@
-import streamlit as st
-import pandas as pd
-import yfinance as yf
-import urllib.request
-import json
-import hmac
+
 import hashlib
-import time
+import hmac
+import json
+import urllib.parse
+import urllib.request
 from datetime import datetime
 
-# Configuração da Página Web ORIGINAL
-st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
+import pandas as pd
+import streamlit as st
+import yfinance as yf
 
-st.title("🤖 Crypto Bot AI - Bybit Automatizado")
-st.markdown("Aqui você acompanha a IA analisando o mercado com filtros de certeza absoluta.")
 
-# ==============================================================================
-# CONFIGURAÇÕES DE SEGURANÇA E TELEGRAM
-# ==============================================================================
-TELEGRAM_TOKEN = "8659842719:AAHzgJe_6dh-GPxrEjOwqaQ8-Z2HdvTjEUg"
-TELEGRAM_CHAT_ID = "5977741363"
+# ============================================================
+# CONFIGURAÇÃO DA APLICAÇÃO
+# ============================================================
 
-api_key_real = st.secrets.get("BYBIT_API_KEY", "")
-secret_key_real = st.secrets.get("BYBIT_SECRET_KEY", "")
-modo_real_ativo = st.secrets.get("modo_real", "nao")
+st.set_page_config(
+    page_title="Crypto Bot AI",
+    page_icon="🤖",
+    layout="wide",
+)
+
+st.title("🤖 Crypto Bot AI")
+st.caption("Monitoramento de criptomoedas | Bybit | Simulador")
+
+st.warning(
+    "Modo de simulação: os resultados são históricos e não garantem "
+    "lucros futuros. Nenhuma ordem real é enviada por esta versão."
+)
+
+
+# ============================================================
+# CONFIGURAÇÕES SECRETAS
+# ============================================================
+
+def obter_secret(nome, padrao=""):
+    try:
+        return st.secrets.get(nome, padrao)
+    except Exception:
+        return padrao
+
+
+TELEGRAM_TOKEN = obter_secret("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = obter_secret("TELEGRAM_CHAT_ID")
+
+# Mantidas para uma futura integração com a Bybit.
+# Esta versão não utiliza essas chaves para operar.
+BYBIT_API_KEY = obter_secret("BYBIT_API_KEY")
+BYBIT_SECRET_KEY = obter_secret("BYBIT_SECRET_KEY")
+
+
+# ============================================================
+# TELEGRAM
+# ============================================================
 
 def enviar_alerta_telegram(mensagem):
-    try:
-        texto_codificado = urllib.parse.quote(mensagem)
-        url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={texto_codificado}&parse_mode=Markdown"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response: pass
-    except: pass
+    """Envia uma mensagem para o Telegram, se configurado."""
 
-# ==============================================================================
-# FUNÇÃO DE EXECUÇÃO DIRETA NA API DA BYBIT
-# ==============================================================================
-def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
-    if modo_real_ativo != "sim" or api_key_real == "" or secret_key_real == "":
-        st.warning("⚠️ Modo Real desativado nos Secrets. Operando em Modo Simulador Protegido.")
-        return False
-        
-    try:
-        moeda = "BTC" if "BTC" in simbolo_yf else ("ETH" if "ETH" in simbolo_yf else "SOL")
-        symbol = f"{moeda}USDT"
-        side = "Buy" if tipo_ordem == "COMPRA" else "Sell"
-        
-        timestamp = str(int(time.time() * 1000))
-        recv_window = "5000"
-        
-        params = {
-            "category": "spot",
-            "symbol": symbol,
-            "side": side,
-            "orderType": "Market",
-            "qty": "6" if side == "Buy" else "0"
-        }
-        
-        if side == "Sell":
-            timestamp_bal = str(int(time.time() * 1000))
-            param_str_bal = f"timestamp={timestamp_bal}&api_key={api_key_real}&recv_window={recv_window}&category=spot"
-            sign_bal = hmac.new(bytes(secret_key_real, "utf-8"), param_str_bal.encode("utf-8"), hashlib.sha256).hexdigest()
-            url_bal = f"https://bybit.com{timestamp_bal}&api_key={api_key_real}&recv_window={recv_window}&sign={sign_bal}"
-            req_bal = urllib.request.Request(url_bal, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req_bal) as r_bal:
-                res_bal = json.loads(r_bal.read().decode())
-                list_bal = res_bal.get("result", {}).get("list", [{}]).get("coin", [])
-                for c in list_bal:
-                    if c.get("coin") == moeda:
-                        params["qty"] = str(c.get("walletBalance", "0"))
-                        break
-            if params["qty"] == "0" or params["qty"] == "0.0":
-                return False
-
-        req_body = json.dumps(params)
-        param_str = timestamp + api_key_real + recv_window + req_body
-        signature = hmac.new(bytes(secret_key_real, "utf-8"), param_str.encode("utf-8"), hashlib.sha256).hexdigest()
-        
-        headers = {
-            "X-BAPI-API-KEY": api_key_real,
-            "X-BAPI-SIGN": signature,
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "Content-Type": "application/json"
-        }
-        
-        url = "https://bybit.com"
-        req = urllib.request.Request(url, data=req_body.encode("utf-8"), headers=headers, method="POST")
-        with urllib.request.urlopen(req) as response:
-            res = json.loads(response.read().decode())
-            if res.get("retCode") == 0:
-                if side == "Buy":
-                    enviar_alerta_telegram(f"💰 *EXECUÇÃO REAL NA BYBIT:* Comprei $6 de {symbol} direto na sua conta!")
-                else:
-                    enviar_alerta_telegram(f"💰 *EXECUÇÃO REAL NA BYBIT:* Vendi todo o saldo de {moeda} na sua conta!")
-                return True
-            else:
-                enviar_alerta_telegram(f"❌ *ERRO NA BYBIT:* Falha ao processar ordem: {res.get('retMsg')}")
-                return False
-    except Exception as e:
-        enviar_alerta_telegram(f"❌ *ERRO DE CONEXÃO:* Falha ao enviar ordem para a Bybit: {str(e)}")
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return False
 
-# ==============================================================================
-# MOTOR DE INTELIGÊNCIA ARTIFICIAL: ANÁLISE DE SENTIMENTO NATIVA
-# ==============================================================================
-def ia_analisar_sentimento(texto):
-    palavras_otimistas = ['bullish', 'surge', 'rise', 'buy', 'accumulate', 'gain', 'growth', 'positive', 'high', 'clear', 'green', 'support']
-    palavras_pessimistas = ['bearish', 'drop', 'fall', 'sell', 'crash', 'loss', 'negative', 'low', 'risk', 'panic', 'crackdown', 'resistance']
-    texto_minusculo = texto.lower()
-    score = 0.0
-    for word in palavras_otimistas:
-        if word in texto_minusculo: score += 0.2
-    for word in palavras_pessimistas:
-        if word in texto_minusculo: score -= 0.2
-    return max(min(score, 1.0), -1.0)
+    url = (
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    )
 
-@st.cache_data(ttl=300)
-def buscar_noticias_cripto():
+    dados = urllib.parse.urlencode({
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": mensagem,
+    }).encode("utf-8")
+
+    requisicao = urllib.request.Request(
+        url,
+        data=dados,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+
     try:
-        url = "https://cryptoquant.com"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response: 
-            dados = json.loads(response.read().decode())
-        resultado = dados.get('data', [])
-        # Trava de segurança: se a API retornar lista vazia, joga para o feed alternativo
-        if not resultado:
-            return [{"title": "Bitcoin institutions continue steady accumulation in secure zones"}, {"title": "Crypto markets show stable consolidation"}]
-        return resultado
-    except:
-        return [
-            {"title": "Bitcoin institutions continue steady accumulation in secure zones"},
-            {"title": "Crypto markets show stable consolidation ahead of liquidity influx"},
-            {"title": "Regulators signal positive environment for digital asset growth"}
-        ]
+        with urllib.request.urlopen(requisicao, timeout=10) as resposta:
+            resultado = json.loads(resposta.read().decode("utf-8"))
 
-# ==============================================================================
-# CRIAÇÃO DAS ABAS INTERATIVAS ORIGINAL BLINDADA (BTC, ETH, SOL)
-# ==============================================================================
-aba_btc, aba_eth, aba_sol = st.tabs(["🪙 Bitcoin (BTC)", "⧫ Ethereum (ETH)", "☀️ Solana (SOL)"])
+        return resultado.get("ok", False)
 
-config_moedas = {
-    "Bitcoin (BTC)": {"ticker": "BTC-USD", "aba": aba_btc},
-    "Ethereum (ETH)": {"ticker": "ETH-USD", "aba": aba_eth},
-    "Solana (SOL)": {"ticker": "SOL-USD", "aba": aba_sol}
+    except Exception as erro:
+        st.error(f"Não foi possível enviar o alerta ao Telegram: {erro}")
+        return False
+
+
+# ============================================================
+# ANÁLISE SIMPLES DE SENTIMENTO
+# ============================================================
+
+def analisar_sentimento(texto):
+    """Retorna uma pontuação lexical aproximada, não uma previsão."""
+
+    positivas = {
+        "bullish", "surge", "rise", "buy", "accumulate",
+        "gain", "growth", "positive", "green", "support",
+        "alta", "valorização", "compra", "crescimento",
+    }
+
+    negativas = {
+        "bearish", "drop", "fall", "sell", "crash",
+        "loss", "negative", "risk", "panic", "resistance",
+        "queda", "perda", "venda", "risco",
+    }
+
+    palavras = (
+        texto.lower()
+        .replace(",", " ")
+        .replace(".", " ")
+        .replace("!", " ")
+        .replace("?", " ")
+        .split()
+    )
+
+    pontuacao = sum(
+        1 for palavra in palavras if palavra in positivas
+    ) - sum(
+        1 for palavra in palavras if palavra in negativas
+    )
+
+    return max(-1.0, min(1.0, pontuacao * 0.2))
+
+
+# ============================================================
+# DADOS DE MERCADO E INDICADORES
+# ============================================================
+
+MOEDAS = {
+    "Bitcoin (BTC)": "BTC-USD",
+    "Ethereum (ETH)": "ETH-USD",
+    "Solana (SOL)": "SOL-USD",
 }
 
+
 @st.cache_data(ttl=60)
-def buscar_dados_e_indicadores(ticker_name):
+def buscar_dados_e_indicadores(ticker):
+    """Obtém candles diários e calcula EMA 20 e RSI 14."""
+
     try:
-        df_historico = yf.Ticker(ticker_name).history(period="60d", interval="1d")
-        if df_historico.empty: return None
-        df = df_historico.reset_index()
-        df.columns = [col.lower() for col in df.columns]
-        df = df.rename(columns={'close': 'fechamento'})
-        
-        df['ema_20'] = df['fechamento'].ewm(span=20, adjust=False).mean()
-        delta = df['fechamento'].diff()
-        ganho = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        perda = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = ganho / (perda + 0.00001)
-        df['rsi_14'] = 100 - (100 / (1 + rs))
-        return df.dropna()
-    except: return None
+        df = yf.Ticker(ticker).history(
+            period="6mo",
+            interval="1d",
+            auto_adjust=True,
+        )
 
-def rodar_simulador(df):
-    capital = 1000.0
-    posicao = 0 
-    preco_compra = 0
+        if df.empty or "Close" not in df.columns:
+            return None
+
+        df = df[["Close"]].copy()
+        df = df.rename(columns={"Close": "fechamento"})
+        df = df.dropna(subset=["fechamento"])
+
+        df["ema_20"] = df["fechamento"].ewm(
+            span=20,
+            adjust=False,
+        ).mean()
+
+        delta = df["fechamento"].diff()
+
+        ganho = delta.clip(lower=0)
+        perda = -delta.clip(upper=0)
+
+        media_ganho = ganho.ewm(
+            alpha=1 / 14,
+            min_periods=14,
+            adjust=False,
+        ).mean()
+
+        media_perda = perda.ewm(
+            alpha=1 / 14,
+            min_periods=14,
+            adjust=False,
+        ).mean()
+
+        rs = media_ganho / media_perda.replace(0, float("nan"))
+
+        df["rsi_14"] = 100 - (100 / (1 + rs))
+
+        # Trata casos em que o preço só subiu ou só caiu.
+        df.loc[
+            (media_perda == 0) & (media_ganho > 0),
+            "rsi_14",
+        ] = 100
+
+        df.loc[
+            (media_perda == 0) & (media_ganho == 0),
+            "rsi_14",
+        ] = 50
+
+        df["rsi_14"] = df["rsi_14"].fillna(50)
+        df.index.name = "data"
+
+        return df.dropna(subset=["ema_20", "rsi_14"])
+
+    except Exception:
+        return None
+
+
+# ============================================================
+# SIMULADOR HISTÓRICO
+# ============================================================
+
+def rodar_simulador(df, capital_inicial=1000.0):
+    """
+    Estratégia demonstrativa:
+    - Compra quando RSI <= 30 e não existe posição.
+    - Vende quando RSI >= 65 e existe posição.
+    - Utiliza o capital disponível em cada compra.
+    - Não inclui taxas, slippage ou impostos.
+    """
+
+    capital = float(capital_inicial)
+    quantidade = 0.0
+    preco_compra = 0.0
+    data_compra = None
     trades = []
-    for i in range(len(df)):
-        linha = df.iloc[i]
-        preco = linha['fechamento']
-        rsi = linha['rsi_14']
-        data = linha['date']
-        if rsi <= 30.0 and posicao == 0:
-            posicao = 1
+
+    for data, linha in df.iterrows():
+        preco = float(linha["fechamento"])
+        rsi = float(linha["rsi_14"])
+
+        if rsi <= 30 and quantidade == 0 and capital > 0:
+            quantidade = capital / preco
             preco_compra = preco
-            trades.append({"Tipo": "🟢 COMPRA", "Data": data.strftime('%d/%m/%Y'), "Preço": f"${preco:,.2f}", "RSI": f"{rsi:.1f}", "Resultado": "Em aberto"})
-        elif rsi >= 65.0 and posicao == 1:
-            posicao = 0
-            lucro = (preco - preco_compra) / preco_compra
-            capital = capital * (1 + lucro)
-            trades[-1]["Resultado"] = f"{lucro*100:+.2f}%"
-            trades[-1]["Preço Venda"] = f"${preco:,.2f}"
-    return capital, pd.DataFrame(trades)
+            data_compra = data
 
-# ==============================================================================
-# RENDERIZAÇÃO CENTRALIZADA ORIGINAL
-# ==============================================================================
-lista_noticias = buscar_noticias_cripto()
+            trades.append({
+                "Compra": data.strftime("%d/%m/%Y"),
+                "Venda": "Em aberto",
+                "Preço compra": preco_compra,
+                "Preço venda": None,
+                "Resultado (%)": None,
+                "Resultado ($)": None,
+                "Status": "Em aberto",
+            })
 
-for nome_moeda, info in config_moedas.items():
-    with info["aba"]:
-        df_mercado = buscar_dados_e_indicadores(info["ticker"])
-        
-        if df_mercado is not None:
-            capital_final, df_trades = rodar_simulador(df_mercado)
-            lucro_total = ((capital_final - 1000.0) / 1000.0) * 100
-            
-            ultima_linha = df_mercado.iloc[-1]
-            preco_atual = ultima_linha['fechamento']
-            rsi_atual = ultima_linha['rsi_14']
-            
-            # BLOCOS SUPERIORES DE MÉTRICAS COMPLETO
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.subheader("💲 Preço Atual")
-                st.info(f"${preco_atual:,.2f}")
-            with col2:
-                st.subheader("📈 Força RSI")
-                st.info(f"{rsi_atual:.2f}")
-            with col3:
-                st.subheader("📊 Lucro Mês")
-                st.success(f"{lucro_total:+.2f}%")
-            with col4:
-                st.subheader("💰 Saldo Total")
-                st.success(f"${capital_final:,.2f}")
+        elif rsi >= 65 and quantidade > 0:
+            valor_venda = quantidade * preco
+            lucro = valor_venda - (quantidade * preco_compra)
+            retorno = (preco / preco_compra - 1) * 100
+
+            capital = valor_venda
+            quantidade = 0.0
+
+            trades[-1].update({
+                "Venda": data.strftime("%d/%m/%Y"),
+                "Preço venda": preco,
+                "Resultado (%)": round(retorno, 2),
+                "Resultado ($)": round(lucro, 2),
+                "Status": "Fechada",
+            })
+
+    # Valoriza a posição aberta pelo último preço disponível.
+    ultimo_preco = float(df["fechamento"].iloc[-1])
+
+    if quantidade > 0:
+        capital_final = quantidade * ultimo_preco
+
+        trades[-1].update({
+            "Preço venda": ultimo_preco,
+            "Resultado (%)": round(
+                (ultimo_preco / preco_compra - 1) * 100, 2
+            ),
+            "Resultado ($)": round(
+                quantidade * (ultimo_preco - preco_compra), 2
+            ),
+            "Status": "Em aberto",
+        })
+    else:
+        capital_final = capital
+
+    historico = pd.DataFrame(trades)
+
+    return capital_final, historico
+
+
+# ============================================================
+# INTERFACE PRINCIPAL
+# ============================================================
+
+aba_btc, aba_eth, aba_sol = st.tabs([
+    "🪙 Bitcoin (BTC)",
+    "⧫ Ethereum (ETH)",
+    "☀️ Solana (SOL)",
+])
+
+abas = [aba_btc, aba_eth, aba_sol]
+
+for (nome, ticker), aba in zip(MOEDAS.items(), abas):
+    with aba:
+        st.subheader(nome)
+
+        with st.spinner(f"Buscando dados de {ticker}..."):
+            df = buscar_dados_e_indicadores(ticker)
+
+        if df is None or df.empty:
+            st.error(
+                "Não foi possível carregar os dados do mercado. "
+                "Verifique sua conexão e tente novamente."
+            )
+            continue
+
+        preco_atual = float(df["fechamento"].iloc[-1])
+        rsi_atual = float(df["rsi_14"].iloc[-1])
+        ema_atual = float(df["ema_20"].iloc[-1])
+
+        capital_final, trades = rodar_simulador(df)
+
+        lucro_percentual = (capital_final / 1000.0 - 1) * 100
+
+        # Métricas
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "💲 Último fechamento",
+            f"${preco_atual:,.2f}",
+        )
+
+        col2.metric(
+            "📈 RSI 14",
+            f"{rsi_atual:.2f}",
+            help="Abaixo de 30: região frequentemente considerada sobrevendida. "
+                 "Acima de 70: região frequentemente considerada sobrecomprada.",
+        )
+
+        col3.metric(
+            "📊 Resultado simulado",
+            f"{lucro_percentual:+.2f}%",
+        )
+
+        col4.metric(
+            "💰 Patrimônio simulado",
+            f"${capital_final:,.2f}",
+            delta=f"{capital_final - 1000.0:+,.2f} USD",
+        )
+
+        # Interpretação dos indicadores
+        st.markdown("### Análise dos indicadores")
+
+        ind1, ind2 = st.columns(2)
+
+        with ind1:
+            st.write(f"**EMA 20:** ${ema_atual:,.2f}")
+
+            if preco_atual > ema_atual:
+                st.info("Preço acima da EMA 20.")
+            elif preco_atual < ema_atual:
+                st.info("Preço abaixo da EMA 20.")
+            else:
+                st.info("Preço próximo da EMA 20.")
+
+        with ind2:
+            st.write(f"**RSI atual:** {rsi_atual:.2f}")
+
+            if rsi_atual <= 30:
+                st.warning(
+                    "RSI em região frequentemente considerada sobrevendida. "
+                    "Isso não confirma uma compra."
+                )
+            elif rsi_atual >= 70:
+                st.warning(
+                    "RSI em região frequentemente considerada sobrecomprada. "
+                    "Isso não confirma uma venda."
+                )
+            else:
+                st.info("RSI fora das regiões extremas de 30 e 70.")
+
+        # Gráfico
+        st.markdown("### Histórico de preços")
+
+        st.line_chart(
+            df[["fechamento", "ema_20"]].rename(
+                columns={
+                    "fechamento": "Preço",
+                    "ema_20": "EMA 20",
+                }
+            )
+        )
+
+        st.markdown("### Histórico do simulador")
+
+        if trades.empty:
+            st.info(
+                "Nenhuma operação foi identificada pela estratégia "
+                "no período analisado."
+            )
+        else:
+            st.dataframe(
+                trades,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        st.caption(
+            "Período: aproximadamente 6 meses de candles diários. "
+            "O último candle pode ainda estar em formação. "
+            "Resultados passados não garantem resultados futuros."
+        )
+
+
+# ============================================================
+# ALERTA MANUAL PELO TELEGRAM
+# ============================================================
+
+st.divider()
+st.subheader("📨 Teste do Telegram")
+
+mensagem = st.text_input(
+    "Mensagem de teste",
+    value="Crypto Bot AI: teste de notificação.",
+)
+
+if st.button("Enviar mensagem de teste"):
+    if enviar_alerta_telegram(mensagem):
+        st.success("Mensagem enviada ao Telegram.")
+    else:
+        st.error(
+            "Não foi possível enviar. Confira o token, o chat ID "
+            "e se o bot já pode enviar mensagens para esse chat."
+        )
+
+st.caption(
+    f"Última atualização da interface: "
+    f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+)

@@ -148,7 +148,7 @@ def rodar_simulador(df):
         linha = df.iloc[i]
         preco = linha['fechamento']
         rsi = linha['rsi_14']
-        data = linha['date']
+        data = connectivity_date = linha['date']
         if rsi <= 30.0 and posicao == 0:
             posicao = 1
             preco_compra = preco
@@ -162,16 +162,18 @@ def rodar_simulador(df):
     return capital, pd.DataFrame(trades)
 
 # ==============================================================================
-# FUNÇÃO DO GRÁFICO BLINDADO EM TEXTO PURA (ASCII ART)
+# FUNÇÃO DO GRÁFICO BLINDADO EM TEXTO (CORRIGIDA)
 # ==============================================================================
 def gerar_grafico_texto_blindado(df):
-    """Gera um gráfico visual usando apenas caracteres de texto normais (Imune a erros)"""
     precos = df['fechamento'].tail(20).tolist()
     datas = df['date'].tail(20).dt.strftime('%d/%m').tolist()
     
-    if not precos: return "Sem dados suficientes."
+    if not precos: 
+        return "Sem dados suficientes."
     
-    min_p, max_p = min(precos), max_p = max(precos)
+    # LINHA CORRIGIDA SEM DUPLICIDADE
+    min_p = min(precos)
+    max_p = max(precos)
     intervalo = (max_p - min_p) if (max_p - min_p) > 0 else 1
     
     altura = 8
@@ -184,14 +186,13 @@ def gerar_grafico_texto_blindado(df):
         for p in precos:
             posicao_p = int(((p - min_p) / intervalo) * altura)
             if posicao_p == r:
-                linha_txt += "██ " # Desenha o bloco do preço
+                linha_txt += "██ "
             else:
-                linha_txt += "░░ " # Espaço vazio do fundo
+                linha_txt += "░░ "
         linhas_grafico.append(linha_txt)
         
-    # Adiciona a linha de datas no final do eixo X
     eixo_x = "       └─" + "──" * len(precos)
-    legenda_datas = "         " + " ".join(datas[::2]) # Mostra as datas pulando de 2 em 2
+    legenda_datas = "         " + " ".join(datas[::2])
     
     linhas_grafico.append(eixo_x)
     linhas_grafico.append(legenda_datas)
@@ -217,3 +218,7 @@ if df_mercado is not None:
     
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Preço Atual", f"${preco_atual:,.2f}")
+    col2.metric("Força RSI", f"{rsi_atual:.2f}")
+    col3.metric("Lucro Mês (Simulado)", f"{lucro_total:+.2f}%")
+    col4.metric("Saldo Total (Simulado)", f"${capital_final:,.2f}")
+    

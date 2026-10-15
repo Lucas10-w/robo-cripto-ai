@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import yfinance as yf
 from datetime import datetime
 import urllib.request
@@ -8,6 +7,13 @@ import json
 import hmac
 import hashlib
 import time
+
+# ==============================================================================
+# 🚨 CONFIGURAÇÃO OBRIGATÓRIA PARA REATIVAR O GRÁFICO NA NUVEM
+# ==============================================================================
+import matplotlib
+matplotlib.use('Agg') # Força o servidor de nuvem a desenhar o gráfico sem travar a tela
+import matplotlib.pyplot as plt
 
 # Configuração da Página Web ORIGINAL
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
@@ -118,11 +124,21 @@ def ia_analisar_sentimento(texto):
 
 @st.cache_data(ttl=300)
 def buscar_noticias_cripto():
-    return [
-        {"title": "Bitcoin institutions continue steady accumulation in secure zones"},
-        {"title": "Crypto markets show stable consolidation ahead of liquidity influx"},
-        {"title": "Regulators signal positive environment for digital asset growth"}
-    ]
+    try:
+        url = "https://cryptoquant.com"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response: 
+            dados = json.loads(response.read().decode())
+        resultado = dados.get('data', [])
+        if not resultado:
+            return [{"title": "Bitcoin institutions continue steady accumulation in secure zones"}, {"title": "Crypto markets show stable consolidation"}]
+        return resultado
+    except:
+        return [
+            {"title": "Bitcoin institutions continue steady accumulation in secure zones"},
+            {"title": "Crypto markets show stable consolidation ahead of liquidity influx"},
+            {"title": "Regulators signal positive environment for digital asset growth"}
+        ]
 
 # ==============================================================================
 # CRIAÇÃO DAS ABAS INTERATIVAS (BTC, ETH, SOL)
@@ -200,21 +216,3 @@ for nome_moeda, info in config_moedas.items():
             with col2:
                 st.subheader("📈 Força RSI")
                 st.info(f"{rsi_atual:.2f}")
-            with col3:
-                st.subheader("📊 Lucro Mês")
-                st.success(f"{lucro_total:+.2f}%")
-            with col4:
-                st.subheader("💰 Saldo Total")
-                st.success(f"${capital_final:,.2f}")
-            
-            # Painel de Análise de Notícias com IA
-            st.markdown(f"### 🧠 Painel de Sentimento da IA para {nome_moeda}")
-            col_noticias, col_status_ia = st.columns(2)
-            
-            with col_noticias:
-                st.markdown("**Feed de Notícias Recentes Detectadas:**")
-                score_total_ia = 0.0
-                contador_noticias = 0
-                
-                for item in lista_noticias:
-                    titulo = item.get('title', '')

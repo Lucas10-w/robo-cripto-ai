@@ -7,11 +7,6 @@ import hashlib
 import time
 from datetime import datetime
 
-# Configuração de segurança visual para a nuvem
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 st.set_page_config(page_title="Crypto Bot AI", page_icon="🤖", layout="wide")
 st.title("🤖 Crypto Bot AI - Bybit Automatizado")
 st.markdown("Aqui você acompanha a IA analisando e operando no mercado real da Bybit com filtros de certeza absoluta.")
@@ -35,7 +30,7 @@ def enviar_alerta_telegram(mensagem):
     except: pass
 
 # ==============================================================================
-# FUNÇÃO DE EXECUÇÃO DIRETA NA API DA BYBIT (NATIVA E ULTRA LEVE)
+# FUNÇÃO DE EXECUÇÃO DIRETA NA API DA BYBIT
 # ==============================================================================
 def executar_ordem_real_bybit(tipo_ordem, simbolo_yf):
     if modo_real_ativo != "sim" or api_key_real == "" or secret_key_real == "":
@@ -151,7 +146,7 @@ def rodar_simulador(df):
     trades = []
     for i in range(len(df)):
         linha = df.iloc[i]
-        preco = linha['fechamento']
+        preco = linea = linha['fechamento']
         rsi = linha['rsi_14']
         data = linha['date']
         if rsi <= 30.0 and posicao == 0:
@@ -209,5 +204,6 @@ if df_mercado is not None:
     else:
         st.info("🟡 STATUS: AGUARDANDO. Mercado fora dos filtros de certeza absoluta. Capital protegido na Bybit.")
         
-    fig, ax = plt.subplots(figsize=(12, 3))
-    ax.plot(df_mercado['date'], df_mercado['fechamento'], color='#00ffcc')
+    # 🔄 ALTERAÇÃO HISTÓRICA: Gráfico oficial nativo do Streamlit (Totalmente visível na nuvem)
+    st.markdown("### 📈 Gráfico de Análise Avançada")
+    dados_grafico = df_mercado.set_index('date')[['fechamento', 'ema_20']]

@@ -2,82 +2,75 @@ import streamlit as st
 import time
 from pybit.unified_trading import HTTP
 
-# Configuração visual básica para a tela não ficar vazia
-st.title("🤖 Bot de Alavancagem - Grid M5")
-st.markdown("Estratégia ativa seguindo o gráfico a cada 5 minutos.")
+# Configuração visual básica para a tela do Streamlit
+st.title("🤖 Bot de Operações Ativas - Mercado Spot")
+st.markdown("Estratégia ativa comprando e realizando lucros a cada 5 minutos no mercado À Vista.")
 
 # =====================================================================
 # CONFIGURAÇÕES REAIS DA SUA CONTA (COLE SUAS CHAVES DA BYBIT AQUI)
 # =====================================================================
-API_KEY = "KoLkJ0mYiGZJeMll6w"
-API_SECRET = "QpVFiWNHcb43lfb04qEZpjgIHzKtRUi2w9OY"
+API_KEY = "SUA_API_KEY_REAL_AQUI"
+API_SECRET = "SEU_API_SECRET_REAL_AQUI"
 
-# Conexão direta com o servidor de produção real da Bybit (testnet=False)
+# Conexão direta com o servidor oficial da Bybit
 session = HTTP(
     testnet=False,
     api_key=API_KEY,
     api_secret=API_SECRET
 )
 
-def executar_grid_rapido(symbol="BTCUSDT", leverage=10):
+def executar_estrategia_spot(symbol="BTCUSDT"):
     st.markdown("---")
-    st.write(f"⏱️ **[M5] Verificando mercado para:** {symbol}...")
+    st.write(f"⏱️ **[M5] Monitorando gráfico Spot para:** {symbol}...")
     
     try:
-        # 1. Configura a alavancagem de 10x na sua conta de trading
-        session.set_leverage(
-            category="linear", symbol=symbol, 
-            buyLeverage=str(leverage), sellLeverage=str(leverage)
-        )
-    except:
-        pass
-        
-    try:
-        # 2. Captura o preço atual do Bitcoin
-        ticker = session.get_tickers(category="linear", symbol=symbol)
+        # 1. Captura o preço atual do Bitcoin no mercado à vista
+        ticker = session.get_tickers(category="spot", symbol=symbol)
         preco_atual = float(ticker['result']['list']['lastPrice'])
-        st.info(f"💵 **Preço Atual do BTC:** ${preco_atual:,.2f}")
+        st.info(f"💵 **Preço Atual do BTC (Spot):** ${preco_atual:,.2f}")
         
-        # 3. Calcula os pontos da grade (0.5% de distância)
-        preco_compra = round(preco_atual * 0.995, 2)   # Compra 0.5% abaixo
-        take_profit  = round(preco_compra * 1.005, 2)  # Vende 0.5% acima da compra
-        stop_loss    = round(preco_compra * 0.992, 2)  # Proteção de perda em 0.8%
+        # 2. Calcula os pontos de operação com base na variação de 0.5%
+        preco_compra = round(preco_atual * 0.995, 2)   # Ordem de compra 0.5% abaixo
+        take_profit  = round(preco_compra * 1.005, 2)  # Alvo de realização 0.5% acima
         
-        # 4. Puxa o seu saldo real de 19.65 USDT automaticamente da conta Unificada
-        carteira = session.get_wallet_balance(category="linear", coin="USDT")
+        # 3. Puxa o seu saldo real de 19.65 USDT da carteira
+        carteira = session.get_wallet_balance(category="spot", coin="USDT")
         saldo_real = float(carteira['result']['list']['coin']['walletBalance'])
-        st.metric(label="Seu Saldo Real na Bybit", value=f"${saldo_real:,.2f}")
+        st.metric(label="Seu Saldo Real em USDT (Spot)", value=f"${saldo_real:,.2f}")
         
-        # 5. Aplica os Juros Compostos (calcula o lote com base no saldo total)
-        poder_compra = saldo_real * leverage
-        quantidade_btc = round(poder_compra / preco_compra, 3)
+        # 4. Define o valor a ser usado por operação (usa a sua banca de ~$19.65)
+        # No Spot da Bybit, o valor mínimo de compra geralmente é de 1 a 5 USDT.
+        valor_operacao_usdt = saldo_real
+        quantidade_btc = round(valor_operacao_usdt / preco_compra, 5) # Fração exata de BTC
         
-        if quantidade_btc <= 0:
-            st.warning("⚠️ Saldo insuficiente para lote mínimo.")
+        if valor_operacao_usdt < 5:
+            st.warning("⚠️ O saldo mínimo exigido para ordens no mercado Spot da Bybit é de $5.00 USDT.")
             return
 
-        st.markdown("### 📝 Ordem de Grade Inteligente Planejada")
-        st.write(f"🛒 **Preço de Entrada (Compra):** ${preco_compra:,.2f}")
-        st.write(f"🎯 **Alvo (Take Profit):** ${take_profit:,.2f}")
-        st.write(f"🛡️ **Proteção (Stop Loss):** ${stop_loss:,.2f}")
-        st.write(f"📦 **Tamanho do Lote:** {quantidade_btc} BTC")
+        st.markdown("### 📝 Próxima Operação Programada")
+        st.write(f"🛒 **Comprar quando recuar para:** ${preco_compra:,.2f}")
+        st.write(f"🎯 **Vender e realizar lucro em:** ${take_profit:,.2f}")
+        st.write(f"📦 **Quantidade de moedas reais adquiridas:** {quantidade_btc} BTC")
         
-        # 6. Envia a ordem para a Bybit
+        # 5. Envia a ordem de compra limite para o mercado Spot
         session.place_order(
-            category="linear", symbol=symbol, side="Buy", orderType="Limit",
-            qty=str(quantidade_btc), price=str(preco_compra),
-            takeProfit=str(take_profit), stopLoss=str(stop_loss),
-            tpTriggerBy="LastPrice", slTriggerBy="LastPrice", timeInForce="GTC"
+            category="spot",
+            symbol=symbol,
+            side="Buy",
+            orderType="Limit",
+            qty=str(quantidade_btc),
+            price=str(preco_compra),
+            timeInForce="GTC"
         )
-        st.success("✅ Armadilha de grade enviada com sucesso para a Bybit!")
+        st.success("✅ Ordem de compra enviada com sucesso ao mercado Spot da Bybit!")
         
     except Exception as e:
-        st.error(f"⚠️ Erro ao processar dados da Bybit: {e}")
+        st.error(f"⚠️ Erro ao comunicar com o Spot da Bybit: {e}")
 
-# Executa a estratégia de forma compatível com a interface do Streamlit
-executar_grid_rapido()
+# Executa o robô no formato do Streamlit
+executar_estrategia_spot()
 
-# Faz o papel do loop: espera o tempo e manda a página se atualizar sozinha
+# Atualização da tela a cada 5 minutos
 st.write("⏱️ Aguardando 5 minutos para a próxima verificação automática...")
 time.sleep(300)
 st.rerun()

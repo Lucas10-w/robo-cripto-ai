@@ -9,8 +9,8 @@ st.markdown("Estratégia ativa comprando e realizando lucros a cada 5 minutos no
 # =====================================================================
 # CONFIGURAÇÕES REAIS DA SUA CONTA (COLE SUAS CHAVES DA BYBIT AQUI)
 # =====================================================================
-API_KEY = "SUA_API_KEY_REAL_AQUI"
-API_SECRET = "SEU_API_SECRET_REAL_AQUI"
+API_KEY = "KoLkJ0mYiGZJeMll6w"
+API_SECRET = "QpVFiWNHcb43lfb04qEZpjgIHzKtRUi2w9OY"
 
 # Conexão direta com o servidor oficial da Bybit
 session = HTTP(

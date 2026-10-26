@@ -1,10 +1,15 @@
+import streamlit as st
 import time
 from pybit.unified_trading import HTTP
+
+# Configuração visual básica para a tela não ficar vazia
+st.title("🤖 Bot de Alavancagem - Grid M5")
+st.markdown("Estratégia ativa seguindo o gráfico a cada 5 minutos.")
 
 # =====================================================================
 # CONFIGURAÇÕES REAIS DA SUA CONTA (COLE SUAS CHAVES DA BYBIT AQUI)
 # =====================================================================
-API_KEY = " KoLkJ0mYiGZJeMll6w"
+API_KEY = "KoLkJ0mYiGZJeMll6w"
 API_SECRET = "QpVFiWNHcb43lfb04qEZpjgIHzKtRUi2w9OY"
 
 # Conexão direta com o servidor de produção real da Bybit (testnet=False)
@@ -15,8 +20,8 @@ session = HTTP(
 )
 
 def executar_grid_rapido(symbol="BTCUSDT", leverage=10):
-    print("\n--------------------------------------------------")
-    print(f"⏱️ [M5] Verificando mercado para: {symbol}...")
+    st.markdown("---")
+    st.write(f"⏱️ **[M5] Verificando mercado para:** {symbol}...")
     
     try:
         # 1. Configura a alavancagem de 10x na sua conta de trading
@@ -25,14 +30,13 @@ def executar_grid_rapido(symbol="BTCUSDT", leverage=10):
             buyLeverage=str(leverage), sellLeverage=str(leverage)
         )
     except:
-        # Se a alavancagem já estiver em 10x, o servidor pode dar um aviso, apenas ignoramos
         pass
         
     try:
         # 2. Captura o preço atual do Bitcoin
         ticker = session.get_tickers(category="linear", symbol=symbol)
         preco_atual = float(ticker['result']['list']['lastPrice'])
-        print(f"💵 Preço Atual: ${preco_atual:,.2f}")
+        st.info(f"💵 **Preço Atual do BTC:** ${preco_atual:,.2f}")
         
         # 3. Calcula os pontos da grade (0.5% de distância)
         preco_compra = round(preco_atual * 0.995, 2)   # Compra 0.5% abaixo
@@ -42,20 +46,21 @@ def executar_grid_rapido(symbol="BTCUSDT", leverage=10):
         # 4. Puxa o seu saldo real de 19.65 USDT automaticamente da conta Unificada
         carteira = session.get_wallet_balance(category="linear", coin="USDT")
         saldo_real = float(carteira['result']['list']['coin']['walletBalance'])
-        print(f"💰 Seu Saldo Real: ${saldo_real:,.2f}")
+        st.metric(label="Seu Saldo Real na Bybit", value=f"${saldo_real:,.2f}")
         
         # 5. Aplica os Juros Compostos (calcula o lote com base no saldo total)
         poder_compra = saldo_real * leverage
         quantidade_btc = round(poder_compra / preco_compra, 3)
         
         if quantidade_btc <= 0:
-            print("⚠️ Saldo insuficiente para lote mínimo.")
+            st.warning("⚠️ Saldo insuficiente para lote mínimo.")
             return
 
-        print(f"📝 Armanda Ordem de Grade Inteligente:")
-        print(f"   ├─🛒 Compra em: ${preco_compra:,.2f}")
-        print(f"   ├─🎯 Realizar Lucro em: ${take_profit:,.2f}")
-        print(f"   └─🛡️ Stop Loss em: ${stop_loss:,.2f}")
+        st.markdown("### 📝 Ordem de Grade Inteligente Planejada")
+        st.write(f"🛒 **Preço de Entrada (Compra):** ${preco_compra:,.2f}")
+        st.write(f"🎯 **Alvo (Take Profit):** ${take_profit:,.2f}")
+        st.write(f"🛡️ **Proteção (Stop Loss):** ${stop_loss:,.2f}")
+        st.write(f"📦 **Tamanho do Lote:** {quantidade_btc} BTC")
         
         # 6. Envia a ordem para a Bybit
         session.place_order(
@@ -64,16 +69,15 @@ def executar_grid_rapido(symbol="BTCUSDT", leverage=10):
             takeProfit=str(take_profit), stopLoss=str(stop_loss),
             tpTriggerBy="LastPrice", slTriggerBy="LastPrice", timeInForce="GTC"
         )
-        print("✅ Armadilha de grade enviada com sucesso para a Bybit!")
+        st.success("✅ Armadilha de grade enviada com sucesso para a Bybit!")
         
     except Exception as e:
-        print(f"⚠️ Erro ao processar dados da Bybit: {e}")
+        st.error(f"⚠️ Erro ao processar dados da Bybit: {e}")
 
-if __name__ == "__main__":
-    print("🤖 Iniciando Bot de Alavancagem em Modo Real...")
-    while True:
-        executar_grid_rapido()
-        
-        # Espera 5 minutos (300 segundos) antes da próxima rodada
-        print("💤 Dormindo por 5 minutos antes da próxima checagem...")
-        time.sleep(300)
+# Executa a estratégia de forma compatível com a interface do Streamlit
+executar_grid_rapido()
+
+# Faz o papel do loop: espera o tempo e manda a página se atualizar sozinha
+st.write("⏱️ Aguardando 5 minutos para a próxima verificação automática...")
+time.sleep(300)
+st.rerun()
